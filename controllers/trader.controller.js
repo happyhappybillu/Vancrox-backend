@@ -125,21 +125,6 @@ exports.createAd = async (req, res) => {
   }
 };
 
-    const ad = await Ad.create({
-      traderId:    trader._id,
-      traderName:  trader.name,
-      traderTid:   trader.tid,
-      returnPct:   parseFloat(returnPct),
-      tradeAmount: parseFloat(tradeAmount),
-      active:      true,
-    });
-
-    res.json({ success: true, message: "Ad created", ad });
-  } catch (e) {
-    console.error("createAd:", e);
-    res.status(500).json({ message: "Server error" });
-  }
-};
 
 /* ── TOGGLE AD (activate / deactivate) ── */
 exports.toggleAd = async (req, res) => {
