@@ -4,7 +4,7 @@ const Trade       = require("../models/Trade");
 const Transaction = require("../models/Transaction");
 const Approval    = require("../models/Approval");
 
-/* ── SUBMIT VERIFICATION ── */
+/* ── SUBMIT of VERIFICATION ── */
 exports.submitVerification = async (req, res) => {
   try {
     const { historyFile, securityDeposit, network, uniqueAmount } = req.body;
