@@ -1,10 +1,12 @@
 const Notification = require("../models/Notification");
 
-/* ── GET ALL (investor side) ── */
+/* ── GET ALL (investor/trader side) ── */
 exports.getAll = async (req, res) => {
   try {
-    const notifications = await Notification.find().sort({ createdAt: -1 }).lean();
-    res.json({ success: true, notifications });
+    const notifications = await Notification.find()
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, notifications: notifications || [] });
   } catch (e) {
     console.error("getAll notif:", e);
     res.status(500).json({ message: "Server error" });
@@ -14,8 +16,10 @@ exports.getAll = async (req, res) => {
 /* ── GET ALL (admin side) ── */
 exports.adminGetAll = async (req, res) => {
   try {
-    const notifications = await Notification.find().sort({ createdAt: -1 }).lean();
-    res.json({ success: true, notifications });
+    const notifications = await Notification.find()
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, notifications: notifications || [] });
   } catch (e) {
     console.error("adminGetAll notif:", e);
     res.status(500).json({ message: "Server error" });
@@ -26,10 +30,17 @@ exports.adminGetAll = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const { title, message, image } = req.body;
-    if (!title || !message) return res.status(400).json({ message: "Title and message required" });
+    if (!title || !message)
+      return res.status(400).json({ message: "Title and message required" });
 
-    const notif = await Notification.create({ title, message, image: image || "" });
-    res.json({ success: true, message: "Notification sent", notification: notif });
+    const notif = await Notification.create({
+      title:   title.trim(),
+      message: message.trim(),
+      image:   image || "",
+    });
+
+    console.log("✅ Notification created:", notif.title);
+    res.json({ success: true, message: "Notification sent to all investors", notification: notif });
   } catch (e) {
     console.error("create notif:", e);
     res.status(500).json({ message: "Server error" });

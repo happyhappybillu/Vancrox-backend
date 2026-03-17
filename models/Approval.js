@@ -41,6 +41,7 @@ const approvalSchema = new mongoose.Schema(
     /* DEPOSIT fields */
     uniqueAmount:    { type: Number, default: null },
     depositNetwork:  { type: String, default: "" },
+    depositPaid:     { type: Boolean, default: false }, // admin confirms deposit received
 
     /* Linked transaction */
     transactionId: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction", default: null },

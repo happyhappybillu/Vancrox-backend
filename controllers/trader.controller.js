@@ -7,10 +7,21 @@ const Approval    = require("../models/Approval");
 /* ── SUBMIT VERIFICATION ── */
 exports.submitVerification = async (req, res) => {
   try {
-    const { historyFile, securityDeposit } = req.body;
-    if (!historyFile)                return res.status(400).json({ message: "Trading history file required" });
-    if (!securityDeposit || securityDeposit < 100)
-      return res.status(400).json({ message: "Minimum security deposit is $100" });
+    const { historyFile, securityDeposit, network, uniqueAmount } = req.body;
+
+    if (!historyFile)
+      return res.status(400).json({ message: "Trading history file required" });
+    if (!securityDeposit || securityDeposit < 50)
+      return res.status(400).json({ message: "Minimum security deposit is $50" });
+    if (!network || !["TRC20","ERC20","BEP20"].includes(network))
+      return res.status(400).json({ message: "Select a valid network" });
+    if (!uniqueAmount)
+      return res.status(400).json({ message: "uniqueAmount required" });
+
+    /* Platform wallet check */
+    const walletKey = `WALLET_${network}`;
+    if (!process.env[walletKey])
+      return res.status(500).json({ message: `Platform ${network} wallet not configured` });
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -18,25 +29,36 @@ exports.submitVerification = async (req, res) => {
     if (user.traderVerificationStatus === "APPROVED")
       return res.status(400).json({ message: "Already verified" });
 
-    /* Update trader status */
+    /* Save history file + mark PENDING — deposit not credited yet */
     user.traderVerificationStatus = "PENDING";
     user.traderHistoryFile        = historyFile;
-    user.securityMoney            = parseFloat(securityDeposit);
+    /* securityMoney will be set when admin approves deposit */
     await user.save();
 
-    /* Create approval request */
+    /* Create TRADER_VERIFICATION approval — doc review */
     await Approval.create({
-      type:            "TRADER_VERIFICATION",
-      status:          "pending",
-      userId:          user._id,
-      userName:        user.name,
-      userRole:        "trader",
-      tid:             user.tid,
-      securityDeposit: parseFloat(securityDeposit),
+      type:              "TRADER_VERIFICATION",
+      status:            "pending",
+      userId:            user._id,
+      userName:          user.name,
+      userRole:          "trader",
+      tid:               user.tid,
+      securityDeposit:   parseFloat(securityDeposit),
       historyFile,
+      /* Deposit info embedded so admin can see both */
+      depositNetwork:    network,
+      uniqueAmount:      parseFloat(uniqueAmount),
+      amount:            parseFloat(securityDeposit),
+      depositPaid:       false,   // admin sets this after verifying payment
     });
 
-    res.json({ success: true, message: "Verification submitted. Awaiting admin review." });
+    res.json({
+      success:     true,
+      message:     "Submitted! Awaiting admin review.",
+      walletAddress: process.env[walletKey],
+      network,
+      uniqueAmount: parseFloat(uniqueAmount),
+    });
   } catch (e) {
     console.error("submitVerification:", e);
     res.status(500).json({ message: "Server error" });
@@ -57,23 +79,58 @@ exports.getMyAds = async (req, res) => {
 /* ── CREATE AD ── */
 exports.createAd = async (req, res) => {
   try {
-    const { returnPct } = req.body;
+    const { returnPct, tradeAmount } = req.body;
+
     if (!returnPct || returnPct < 1 || returnPct > 100)
       return res.status(400).json({ message: "Return % must be 1–100" });
+    if (!tradeAmount || tradeAmount < 10)
+      return res.status(400).json({ message: "Minimum trade amount is $10" });
+    if (tradeAmount % 10 !== 0)
+      return res.status(400).json({ message: "Trade amount must be multiple of 10 (10, 20, 30...)" });
 
     const trader = await User.findById(req.user._id);
     if (!trader) return res.status(404).json({ message: "Trader not found" });
     if (trader.traderVerificationStatus !== "APPROVED")
       return res.status(403).json({ message: "Trader not verified" });
-    if (!trader.securityMoney || trader.securityMoney < 100)
+    if (!trader.securityMoney || trader.securityMoney < 50)
       return res.status(400).json({ message: "Security deposit required" });
+
+    /* Check total ads amount ≤ security money */
+    const existingAds = await Ad.find({ traderId: trader._id });
+    const usedAmount  = existingAds.reduce((sum, ad) => sum + (ad.tradeAmount || 0), 0);
+    const remaining   = trader.securityMoney - usedAmount;
+
+    if (tradeAmount > remaining) {
+      return res.status(400).json({
+        message: `Insufficient security. Used: $${usedAmount}, Remaining: $${remaining}. Add more security deposit to create bigger ads.`,
+        remaining,
+        used: usedAmount,
+        security: trader.securityMoney,
+      });
+    }
 
     const ad = await Ad.create({
       traderId:    trader._id,
       traderName:  trader.name,
       traderTid:   trader.tid,
       returnPct:   parseFloat(returnPct),
-      tradeAmount: trader.securityMoney,
+      tradeAmount: parseFloat(tradeAmount),
+      active:      true,
+    });
+
+    res.json({ success: true, message: "Ad created", ad });
+  } catch (e) {
+    console.error("createAd:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+    const ad = await Ad.create({
+      traderId:    trader._id,
+      traderName:  trader.name,
+      traderTid:   trader.tid,
+      returnPct:   parseFloat(returnPct),
+      tradeAmount: parseFloat(tradeAmount),
       active:      true,
     });
 

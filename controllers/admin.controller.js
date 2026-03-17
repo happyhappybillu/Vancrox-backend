@@ -64,7 +64,7 @@ exports.getApprovals = async (req, res) => {
 exports.approveItem = async (req, res) => {
   try {
     const approval = await Approval.findById(req.params.id);
-    if (!approval)                 return res.status(404).json({ message: "Approval not found" });
+    if (!approval)                     return res.status(404).json({ message: "Approval not found" });
     if (approval.status !== "pending") return res.status(400).json({ message: "Already processed" });
 
     approval.status = "approved";
@@ -83,10 +83,24 @@ exports.approveItem = async (req, res) => {
         await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Completed" });
     }
 
-    /* ── TRADER VERIFICATION approved → unlock dashboard ── */
+    /* ── TRADER_VERIFICATION approved → unlock + credit security money ── */
     if (approval.type === "TRADER_VERIFICATION") {
       await User.findByIdAndUpdate(approval.userId, {
         traderVerificationStatus: "APPROVED",
+        securityMoney:            approval.securityDeposit || 0,
+      });
+
+      /* Record security deposit as transaction */
+      await Transaction.create({
+        userId:   approval.userId,
+        userName: approval.userName,
+        userRole: "trader",
+        tid:      approval.tid,
+        type:     "Deposit",
+        amount:   approval.securityDeposit || 0,
+        network:  approval.depositNetwork || "",
+        status:   "Completed",
+        note:     "Security deposit — verified by admin",
       });
     }
 
@@ -101,7 +115,7 @@ exports.approveItem = async (req, res) => {
 exports.rejectItem = async (req, res) => {
   try {
     const approval = await Approval.findById(req.params.id);
-    if (!approval)                 return res.status(404).json({ message: "Approval not found" });
+    if (!approval)                     return res.status(404).json({ message: "Approval not found" });
     if (approval.status !== "pending") return res.status(400).json({ message: "Already processed" });
 
     approval.status = "rejected";
@@ -114,17 +128,17 @@ exports.rejectItem = async (req, res) => {
         await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Failed" });
     }
 
-    /* ── DEPOSIT rejected → mark tx failed (no credit) ── */
+    /* ── DEPOSIT rejected → mark tx failed ── */
     if (approval.type === "DEPOSIT") {
       if (approval.transactionId)
         await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Failed" });
     }
 
-    /* ── TRADER VERIFICATION rejected ── */
+    /* ── TRADER_VERIFICATION rejected → send back to re-submit ── */
     if (approval.type === "TRADER_VERIFICATION") {
       await User.findByIdAndUpdate(approval.userId, {
         traderVerificationStatus: "REJECTED",
-        rejectionReason: req.body.reason || "Documents not valid",
+        rejectionReason: req.body.reason || "Documents not valid or deposit not received",
       });
     }
 

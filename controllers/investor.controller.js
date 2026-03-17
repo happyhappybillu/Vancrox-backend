@@ -57,7 +57,7 @@ exports.initDeposit = async (req, res) => {
       return res.status(400).json({ message: "network, amount, uniqueAmount required" });
     if (!["TRC20", "ERC20", "BEP20"].includes(network))
       return res.status(400).json({ message: "network must be TRC20, ERC20, or BEP20" });
-    if (amount < 50) return res.status(400).json({ message: "Minimum deposit is $50" });
+    if (amount < 10) return res.status(400).json({ message: "Minimum deposit is $10" });
 
     /* Check platform wallet is configured */
     const walletKey = `WALLET_${network}`;
@@ -124,7 +124,7 @@ exports.initDeposit = async (req, res) => {
 exports.requestWithdraw = async (req, res) => {
   try {
     const { amount } = req.body;
-    if (!amount || amount < 100) return res.status(400).json({ message: "Minimum withdrawal is $100" });
+    if (!amount || amount < 50) return res.status(400).json({ message: "Minimum withdrawal is $50" });
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
