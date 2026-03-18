@@ -187,6 +187,16 @@ exports.hireTrader = async (req, res) => {
     if (trader.traderVerificationStatus !== "APPROVED") return res.status(400).json({ message: "Trader not verified" });
     if (trader.isBlocked) return res.status(400).json({ message: "Trader is blocked" });
 
+    /* Max 3 hires per day per investor */
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayHires = await Trade.countDocuments({
+      investorId: investor._id,
+      createdAt:  { $gte: todayStart },
+    });
+    if (todayHires >= 3)
+      return res.status(400).json({ message: "Daily limit reached. You can hire maximum 3 traders per day." });
+
     const amount = ad.tradeAmount;
     if (investor.balance < amount)
       return res.status(400).json({ message: `Insufficient balance. Need $${amount}` });
