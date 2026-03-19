@@ -12,7 +12,7 @@ const signToken = (user) =>
 /* ── REGISTER INVESTOR ── */
 exports.registerInvestor = async (req, res) => {
   try {
-    let { name, email, mobile, password } = req.body;
+    let { name, email, mobile, password, refCode } = req.body;
     if (!name || !password)         return res.status(400).json({ message: "Name & password required" });
     if (!email && !mobile)          return res.status(400).json({ message: "Email or mobile required" });
 
@@ -26,7 +26,18 @@ exports.registerInvestor = async (req, res) => {
     const uid  = await generateUID();
     const hash = await bcrypt.hash(String(password), 10);
 
-    const user = await User.create({ role: "investor", name, email, mobile, password: hash, uid, balance: 0 });
+    /* Check referrer */
+    let referrerId = null;
+    if (refCode) {
+      const referrer = await User.findOne({ referCode: String(refCode).trim() });
+      if (referrer) referrerId = referrer._id;
+    }
+
+    const user = await User.create({
+      role: "investor", name, email, mobile, password: hash, uid, balance: 0,
+      referCode:  "UID" + uid,       // e.g. UID10001
+      referredBy: referrerId,
+    });
     const token = signToken(user);
 
     res.json({ success: true, token, role: "investor", uid: user.uid, name: user.name });

@@ -81,6 +81,32 @@ exports.approveItem = async (req, res) => {
       await User.findByIdAndUpdate(approval.userId, { $inc: { balance: approval.amount } });
       if (approval.transactionId)
         await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Completed" });
+
+      /* Refer & Earn — credit referrer 10% on FIRST deposit only */
+      const investor = await User.findById(approval.userId);
+      if (investor?.referredBy) {
+        /* Check if this is their first completed deposit */
+        const prevDeposits = await Transaction.countDocuments({
+          userId: approval.userId,
+          type:   "Deposit",
+          status: "Completed",
+        });
+        if (prevDeposits === 1) { // just became 1 after update above
+          const referBonus = parseFloat((approval.amount * 0.10).toFixed(2));
+          await User.findByIdAndUpdate(investor.referredBy, {
+            $inc: { referBalance: referBonus, referEarned: referBonus },
+          });
+          await Transaction.create({
+            userId:   investor.referredBy,
+            userName: "Referral Bonus",
+            userRole: "investor",
+            type:     "Referral Bonus",
+            amount:   referBonus,
+            status:   "Completed",
+            note:     `10% refer bonus from ${investor.name} (${investor.referCode}) first deposit`,
+          });
+        }
+      }
     }
 
     /* ── TRADER_VERIFICATION approved → unlock + credit security money ── */

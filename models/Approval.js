@@ -37,6 +37,7 @@ const approvalSchema = new mongoose.Schema(
     /* TRADER_VERIFICATION fields */
     securityDeposit: { type: Number, default: 0 },
     historyFile:     { type: String, default: "" },
+    paymentScreenshot: { type: String, default: "" }, // base64 image proof of payment
 
     /* DEPOSIT fields */
     uniqueAmount:    { type: Number, default: null },

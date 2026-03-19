@@ -34,9 +34,15 @@ const userSchema = new mongoose.Schema(
     rejectionReason: { type: String, default: "" },
 
     /* CONTROL */
-    isBlocked: { type: Boolean, default: false, index: true },
+    isBlocked:    { type: Boolean, default: false, index: true },
     blockedReason: { type: String, default: "" },
-    lastLoginAt: { type: Date, default: null },
+    lastLoginAt:  { type: Date, default: null },
+
+    /* REFER & EARN */
+    referCode:    { type: String, default: "", index: true },
+    referredBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    referBalance: { type: Number, default: 0 },
+    referEarned:  { type: Number, default: 0 },
   },
   { timestamps: true }
 );

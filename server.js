@@ -23,6 +23,7 @@ app.use("/api/trader",        require("./routes/trader.routes"));
 app.use("/api/admin",         require("./routes/admin.routes"));
 app.use("/api/notifications", require("./routes/notification.routes"));
 app.use("/api/support",       require("./routes/support.routes"));
+app.use("/api/refer",         require("./routes/refer.routes"));
 
 /* ── HEALTH ── */
 app.get("/", (req, res) => res.json({ status: "VANCROX API Running ✅", time: new Date() }));

@@ -7,7 +7,7 @@ const Approval    = require("../models/Approval");
 /* ── SUBMIT VERIFICATION ── */
 exports.submitVerification = async (req, res) => {
   try {
-    const { historyFile, securityDeposit, network, uniqueAmount } = req.body;
+    const { historyFile, securityDeposit, network, uniqueAmount, paymentScreenshot } = req.body;
 
     if (!historyFile)
       return res.status(400).json({ message: "Trading history file required" });
@@ -45,11 +45,11 @@ exports.submitVerification = async (req, res) => {
       tid:               user.tid,
       securityDeposit:   parseFloat(securityDeposit),
       historyFile,
-      /* Deposit info embedded so admin can see both */
+      paymentScreenshot: paymentScreenshot || null,
       depositNetwork:    network,
       uniqueAmount:      parseFloat(uniqueAmount),
       amount:            parseFloat(securityDeposit),
-      depositPaid:       false,   // admin sets this after verifying payment
+      depositPaid:       false,
     });
 
     res.json({
