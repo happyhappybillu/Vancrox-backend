@@ -26,11 +26,26 @@ exports.registerInvestor = async (req, res) => {
     const uid  = await generateUID();
     const hash = await bcrypt.hash(String(password), 10);
 
-    /* Check referrer */
+    /* Check referrer — match by referCode OR by uid pattern (UID10001 → uid:10001) */
     let referrerId = null;
     if (refCode) {
-      const referrer = await User.findOne({ referCode: String(refCode).trim() });
-      if (referrer) referrerId = referrer._id;
+      const code = String(refCode).trim().toUpperCase();
+      /* Try direct referCode match first */
+      let referrer = await User.findOne({ referCode: code });
+      /* Fallback: if code is "UID12345", extract numeric part and search by uid */
+      if (!referrer && code.startsWith("UID")) {
+        const uidNum = parseInt(code.replace("UID", ""), 10);
+        if (!isNaN(uidNum)) {
+          referrer = await User.findOne({ uid: uidNum, role: "investor" });
+        }
+      }
+      if (referrer) {
+        referrerId = referrer._id;
+        /* Auto-fix referCode if missing */
+        if (!referrer.referCode) {
+          await User.findByIdAndUpdate(referrer._id, { referCode: "UID" + referrer.uid });
+        }
+      }
     }
 
     const user = await User.create({

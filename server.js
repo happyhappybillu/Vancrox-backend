@@ -9,7 +9,21 @@ const depositCron  = require("./utils/depositCron");
 const app = express();
 
 /* ── DB ── */
-connectDB();
+connectDB().then(async () => {
+  /* Auto-fix missing referCodes for existing users */
+  try {
+    const User = require("./models/User");
+    const usersWithoutCode = await User.find({ role: "investor", $or: [{ referCode: "" }, { referCode: null }] });
+    for (const u of usersWithoutCode) {
+      await User.findByIdAndUpdate(u._id, { referCode: "UID" + u.uid });
+    }
+    if (usersWithoutCode.length > 0) {
+      console.log(`✅ Fixed referCode for ${usersWithoutCode.length} existing users`);
+    }
+  } catch (e) {
+    console.error("referCode fix error:", e.message);
+  }
+});
 
 /* ── MIDDLEWARE ── */
 app.use(cors({ origin: "*", credentials: true }));

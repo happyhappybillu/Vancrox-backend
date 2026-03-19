@@ -5,12 +5,19 @@ const Approval    = require("../models/Approval");
 /* ── GET MY REFER INFO ── */
 exports.getMyRefer = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).lean();
+    let user = await User.findById(req.user._id).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    /* Get all referred users */
+    /* Auto-set referCode if missing (existing users) */
+    if (!user.referCode && user.uid) {
+      await User.findByIdAndUpdate(user._id, { referCode: "UID" + user.uid });
+      user.referCode = "UID" + user.uid;
+    }
+
+    /* Get all referred users — show even if not deposited yet */
     const referred = await User.find({ referredBy: user._id })
       .select("name uid referCode createdAt")
+      .sort({ createdAt: -1 })
       .lean();
 
     /* Check which ones have made first deposit */
@@ -24,7 +31,6 @@ exports.getMyRefer = async (req, res) => {
         _id:        r._id,
         name:       r.name,
         uid:        r.uid,
-        referCode:  r.referCode,
         joinedAt:   r.createdAt,
         deposited:  !!firstDeposit,
         depositAmt: firstDeposit ? firstDeposit.amount : 0,
@@ -34,7 +40,7 @@ exports.getMyRefer = async (req, res) => {
 
     res.json({
       success:      true,
-      referCode:    user.referCode || ("UID" + user.uid),
+      referCode:    user.referCode,
       referBalance: user.referBalance || 0,
       referEarned:  user.referEarned  || 0,
       referred:     referredWithStatus,
