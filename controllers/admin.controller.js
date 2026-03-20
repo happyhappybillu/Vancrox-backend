@@ -51,7 +51,12 @@ exports.blockUser = async (req, res) => {
 exports.getApprovals = async (req, res) => {
   try {
     const filter = {};
-    if (req.query.status) filter.status = req.query.status;
+    if (req.query.status) {
+      filter.status = req.query.status;
+    } else {
+      /* By default show pending + expired (expired still need admin action) */
+      filter.status = { $in: ["pending", "expired"] };
+    }
     const approvals = await Approval.find(filter).sort({ createdAt: -1 }).lean();
     res.json({ success: true, approvals, total: approvals.length });
   } catch (e) {
@@ -65,7 +70,7 @@ exports.approveItem = async (req, res) => {
   try {
     const approval = await Approval.findById(req.params.id);
     if (!approval)                     return res.status(404).json({ message: "Approval not found" });
-    if (approval.status !== "pending") return res.status(400).json({ message: "Already processed" });
+    if (!["pending","expired"].includes(approval.status)) return res.status(400).json({ message: "Already processed" });
 
     approval.status = "approved";
     await approval.save();
@@ -142,7 +147,7 @@ exports.rejectItem = async (req, res) => {
   try {
     const approval = await Approval.findById(req.params.id);
     if (!approval)                     return res.status(404).json({ message: "Approval not found" });
-    if (approval.status !== "pending") return res.status(400).json({ message: "Already processed" });
+    if (!["pending","expired"].includes(approval.status)) return res.status(400).json({ message: "Already processed" });
 
     approval.status = "rejected";
     await approval.save();
@@ -253,6 +258,28 @@ exports.reportWithdrawals = async (req, res) => {
     res.json({ success: true, withdrawals });
   } catch (e) {
     console.error("reportWithdrawals:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ── CLOSE DEPOSIT (mark done without crediting — e.g. wrong amount) ── */
+exports.closeDeposit = async (req, res) => {
+  try {
+    const approval = await Approval.findById(req.params.id);
+    if (!approval) return res.status(404).json({ message: "Not found" });
+    if (!["pending","expired"].includes(approval.status))
+      return res.status(400).json({ message: "Already processed" });
+
+    approval.status = "closed";
+    await approval.save();
+
+    if (approval.transactionId) {
+      await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Closed" });
+    }
+
+    res.json({ success: true, message: "Deposit closed — removed from pending list" });
+  } catch (e) {
+    console.error("closeDeposit:", e);
     res.status(500).json({ message: "Server error" });
   }
 };

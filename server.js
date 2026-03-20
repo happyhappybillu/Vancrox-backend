@@ -45,8 +45,8 @@ app.get("/", (req, res) => res.json({ status: "VANCROX API Running ✅", time: n
 /* ── AUTO-REJECT CRON — every 30s ── */
 cron.schedule("*/30 * * * * *", autoReject);
 
-/* ── DEPOSIT AUTO-VERIFY CRON — every 60s ── */
-cron.schedule("*/60 * * * * *", depositCron);
+/* ── DEPOSIT AUTO-VERIFY CRON — every 1 minute ── */
+cron.schedule("0 * * * * *", depositCron);
 console.log("⛓️  Blockchain deposit verifier running (every 60s)");
 
 /* ── START ── */

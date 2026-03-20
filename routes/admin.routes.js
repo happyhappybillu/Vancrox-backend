@@ -15,6 +15,7 @@ router.post("/traders/:id/verify",        ...guard, adm.verifyTrader);
 router.get("/approvals",                  ...guard, adm.getApprovals);
 router.post("/approvals/:id/approve",     ...guard, adm.approveItem);
 router.post("/approvals/:id/reject",      ...guard, adm.rejectItem);
+router.post("/approvals/:id/close",       ...guard, adm.closeDeposit);
 
 /* Wallet Addresses */
 router.get("/addresses",                  ...guard, adm.getAddresses);
