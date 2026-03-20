@@ -83,33 +83,42 @@ exports.approveItem = async (req, res) => {
 
     /* ── DEPOSIT approved → credit investor balance ── */
     if (approval.type === "DEPOSIT") {
-      await User.findByIdAndUpdate(approval.userId, { $inc: { balance: approval.amount } });
-      if (approval.transactionId)
-        await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Completed" });
+      /* Check if already auto-verified by blockchain cron */
+      const tx = approval.transactionId
+        ? await Transaction.findById(approval.transactionId)
+        : null;
+      const alreadyCompleted = tx && tx.status === "Completed";
 
-      /* Refer & Earn — credit referrer 10% on FIRST deposit only */
-      const investor = await User.findById(approval.userId);
-      if (investor?.referredBy) {
-        /* Check if this is their first completed deposit */
-        const prevDeposits = await Transaction.countDocuments({
-          userId: approval.userId,
-          type:   "Deposit",
-          status: "Completed",
-        });
-        if (prevDeposits === 1) { // just became 1 after update above
-          const referBonus = parseFloat((approval.amount * 0.10).toFixed(2));
-          await User.findByIdAndUpdate(investor.referredBy, {
-            $inc: { referBalance: referBonus, referEarned: referBonus },
+      if (alreadyCompleted) {
+        /* Already credited by blockchain cron — just mark approved, NO double credit */
+        console.log(`⚠️ Deposit already auto-verified for ${approval.userName} — skipping double credit`);
+      } else {
+        /* Not yet credited — credit now */
+        await User.findByIdAndUpdate(approval.userId, { $inc: { balance: approval.amount } });
+        if (approval.transactionId)
+          await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Completed" });
+
+        /* Refer bonus on first deposit */
+        const investor = await User.findById(approval.userId);
+        if (investor?.referredBy) {
+          const prevDeposits = await Transaction.countDocuments({
+            userId: approval.userId, type: "Deposit", status: "Completed",
           });
-          await Transaction.create({
-            userId:   investor.referredBy,
-            userName: "Referral Bonus",
-            userRole: "investor",
-            type:     "Referral Bonus",
-            amount:   referBonus,
-            status:   "Completed",
-            note:     `10% refer bonus from ${investor.name} (${investor.referCode}) first deposit`,
-          });
+          if (prevDeposits === 1) {
+            const referBonus = parseFloat((approval.amount * 0.10).toFixed(2));
+            await User.findByIdAndUpdate(investor.referredBy, {
+              $inc: { referBalance: referBonus, referEarned: referBonus },
+            });
+            await Transaction.create({
+              userId:   investor.referredBy,
+              userName: "Referral Bonus",
+              userRole: "investor",
+              type:     "Referral Bonus",
+              amount:   referBonus,
+              status:   "Completed",
+              note:     `10% refer bonus from ${investor.name} (${investor.referCode}) first deposit`,
+            });
+          }
         }
       }
     }
@@ -159,10 +168,27 @@ exports.rejectItem = async (req, res) => {
         await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Failed" });
     }
 
-    /* ── DEPOSIT rejected → mark tx failed ── */
+    /* ── DEPOSIT rejected ── */
     if (approval.type === "DEPOSIT") {
-      if (approval.transactionId)
-        await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Failed" });
+      /* Check if already auto-verified and balance was credited */
+      const tx = approval.transactionId
+        ? await Transaction.findById(approval.transactionId)
+        : null;
+      const alreadyCredited = tx && tx.status === "Completed";
+
+      if (alreadyCredited) {
+        /* Auto-verify ne credit kar diya tha — wapas kato */
+        await User.findByIdAndUpdate(approval.userId, { $inc: { balance: -approval.amount } });
+        await Transaction.findByIdAndUpdate(approval.transactionId, {
+          status: "Failed",
+          note:   "Admin rejected — balance reversed",
+        });
+        console.log(`⚠️ Admin rejected auto-verified deposit — $${approval.amount} reversed for ${approval.userName}`);
+      } else {
+        /* Not yet credited — just mark failed */
+        if (approval.transactionId)
+          await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Failed" });
+      }
     }
 
     /* ── TRADER_VERIFICATION rejected → send back to re-submit ── */

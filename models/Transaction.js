@@ -10,7 +10,7 @@ const txSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ["Deposit", "Withdrawal", "Profit", "Loss Refund", "Commission"],
+      enum: ["Deposit", "Withdrawal", "Profit", "Loss Refund", "Commission", "Referral Bonus", "Referral Withdrawal"],
       required: true,
     },
 
@@ -21,7 +21,7 @@ const txSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["Pending", "Completed", "Failed"],
+      enum: ["Pending", "Completed", "Failed", "Expired", "Closed"],
       default: "Pending",
     },
 
