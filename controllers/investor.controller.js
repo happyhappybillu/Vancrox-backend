@@ -224,6 +224,19 @@ exports.hireTrader = async (req, res) => {
       hireTime:     new Date(),
     });
 
+    /* ── SERVER-SIDE AUTO ACCEPT ── */
+    if (trader.autoAccept) {
+      trade.status = "ONGOING";
+      await trade.save();
+      console.log(`⚡ Auto-accepted trade ${trade._id} for trader ${trader.name}`);
+      return res.json({
+        success: true,
+        message: "Trader hired and auto-accepted! Trade is now ongoing.",
+        trade,
+        autoAccepted: true,
+      });
+    }
+
     res.json({ success: true, message: "Trader hired! Waiting for confirmation.", trade });
   } catch (e) {
     console.error("hireTrader:", e);

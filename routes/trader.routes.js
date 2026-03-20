@@ -15,6 +15,7 @@ router.post("/trades/:id/reject",        ...guard, tr.rejectTrade);
 router.post("/trades/:id/outcome",       ...guard, tr.setOutcome);
 router.get("/earnings",                  ...guard, tr.getEarnings);
 router.post("/withdraw",                 ...guard, tr.withdrawEarnings);
+router.post("/auto-accept",              ...guard, tr.setAutoAccept);
 router.post("/wallet",                   ...guard, tr.saveWallet);
 router.post("/profile",                  ...guard, tr.updateProfile);
 

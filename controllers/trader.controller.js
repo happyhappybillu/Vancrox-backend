@@ -384,3 +384,16 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+/* ── TOGGLE AUTO ACCEPT ── */
+exports.setAutoAccept = async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    await User.findByIdAndUpdate(req.user._id, { autoAccept: !!enabled });
+    console.log(`⚡ AutoAccept ${enabled ? "ON" : "OFF"} for trader ${req.user._id}`);
+    res.json({ success: true, autoAccept: !!enabled });
+  } catch (e) {
+    console.error("setAutoAccept:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+};

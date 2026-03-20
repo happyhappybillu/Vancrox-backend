@@ -32,6 +32,7 @@ const userSchema = new mongoose.Schema(
     traderHistoryFile: { type: String, default: "" },
     traderTotalEarning: { type: Number, default: 0 },
     rejectionReason: { type: String, default: "" },
+    autoAccept: { type: Boolean, default: false }, // server-side auto-accept
 
     /* CONTROL */
     isBlocked:    { type: Boolean, default: false, index: true },
