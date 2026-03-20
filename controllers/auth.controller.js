@@ -26,33 +26,47 @@ exports.registerInvestor = async (req, res) => {
     const uid  = await generateUID();
     const hash = await bcrypt.hash(String(password), 10);
 
-    /* Check referrer — match by referCode OR by uid pattern (UID10001 → uid:10001) */
+    /* ── REFER CODE LOOKUP ── */
     let referrerId = null;
     if (refCode) {
       const code = String(refCode).trim().toUpperCase();
-      /* Try direct referCode match first */
+      console.log(`🔗 Register with refCode: "${code}"`);
+
+      /* Try 1: exact referCode field match */
       let referrer = await User.findOne({ referCode: code });
-      /* Fallback: if code is "UID12345", extract numeric part and search by uid */
+
+      /* Try 2: UID+number → search by uid number */
       if (!referrer && code.startsWith("UID")) {
         const uidNum = parseInt(code.replace("UID", ""), 10);
         if (!isNaN(uidNum)) {
           referrer = await User.findOne({ uid: uidNum, role: "investor" });
+          console.log(`🔍 Fallback uid lookup: uid=${uidNum} → found=${!!referrer}`);
         }
       }
+
       if (referrer) {
         referrerId = referrer._id;
-        /* Auto-fix referCode if missing */
+        console.log(`✅ Referrer found: ${referrer.name} (UID${referrer.uid})`);
+        /* Auto-fix referCode if empty */
         if (!referrer.referCode) {
           await User.findByIdAndUpdate(referrer._id, { referCode: "UID" + referrer.uid });
+          console.log(`🔧 Auto-fixed referCode for ${referrer.name}`);
         }
+      } else {
+        console.log(`❌ No referrer found for code: "${code}"`);
       }
     }
 
     const user = await User.create({
       role: "investor", name, email, mobile, password: hash, uid, balance: 0,
-      referCode:  "UID" + uid,       // e.g. UID10001
+      referCode:  "UID" + uid,
       referredBy: referrerId,
     });
+
+    if (referrerId) {
+      console.log(`🎉 New user ${name} (UID${uid}) registered via refer — referredBy: ${referrerId}`);
+    }
+
     const token = signToken(user);
 
     res.json({ success: true, token, role: "investor", uid: user.uid, name: user.name });

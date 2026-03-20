@@ -12,13 +12,16 @@ exports.getMyRefer = async (req, res) => {
     if (!user.referCode && user.uid) {
       await User.findByIdAndUpdate(user._id, { referCode: "UID" + user.uid });
       user.referCode = "UID" + user.uid;
+      console.log("Auto-set referCode: UID" + user.uid + " for " + user.name);
     }
 
     /* Get all referred users — show even if not deposited yet */
     const referred = await User.find({ referredBy: user._id })
-      .select("name uid referCode createdAt")
+      .select("name uid createdAt")
       .sort({ createdAt: -1 })
       .lean();
+
+    console.log(user.name + " referCode=" + user.referCode + " referred=" + referred.length);
 
     /* Check which ones have made first deposit */
     const referredWithStatus = await Promise.all(referred.map(async (r) => {
@@ -66,26 +69,25 @@ exports.withdrawRefer = async (req, res) => {
       return res.status(400).json({ message: "Insufficient refer balance" });
 
     const wallet =
-      user.walletAddresses?.TRC20 ||
-      user.walletAddresses?.ERC20 ||
-      user.walletAddresses?.BEP20 || "";
+      (user.walletAddresses && (user.walletAddresses.TRC20 ||
+      user.walletAddresses.ERC20 ||
+      user.walletAddresses.BEP20)) || "";
     if (!wallet)
       return res.status(400).json({ message: "Save a withdrawal wallet address first" });
 
-    /* Deduct */
     user.referBalance -= parseFloat(amount);
     await user.save();
 
     const tx = await Transaction.create({
-      userId:       user._id,
-      userName:     user.name,
-      userRole:     "investor",
-      uid:          user.uid,
-      type:         "Referral Withdrawal",
-      amount:       parseFloat(amount),
+      userId:        user._id,
+      userName:      user.name,
+      userRole:      "investor",
+      uid:           user.uid,
+      type:          "Referral Withdrawal",
+      amount:        parseFloat(amount),
       walletAddress: wallet,
-      status:       "Pending",
-      note:         "Refer balance withdrawal",
+      status:        "Pending",
+      note:          "Refer balance withdrawal",
     });
 
     await Approval.create({
@@ -110,30 +112,32 @@ exports.withdrawRefer = async (req, res) => {
 /* ── ADMIN: ALL REFERRAL STATS ── */
 exports.adminReferStats = async (req, res) => {
   try {
-    /* Get all investors who have referred at least 1 person */
     const referrers = await User.find({
-      role:       "investor",
-      referCode:  { $ne: "" },
+      role:      "investor",
+      referCode: { $ne: "" },
     }).select("name uid referCode referBalance referEarned createdAt").lean();
 
+    const depositedIds = await Transaction.distinct("userId", { type: "Deposit", status: "Completed" });
+
     const stats = await Promise.all(referrers.map(async (r) => {
-      const totalReferred = await User.countDocuments({ referredBy: r._id });
-      const deposited     = await User.countDocuments({
+      const totalReferred  = await User.countDocuments({ referredBy: r._id });
+      const depositedCount = await User.countDocuments({
         referredBy: r._id,
-        _id: { $in: (await Transaction.distinct("userId", { type: "Deposit", status: "Completed" })) },
+        _id: { $in: depositedIds },
       });
       return {
-        ...r,
+        name:          r.name,
+        uid:           r.uid,
+        referCode:     r.referCode,
+        referBalance:  r.referBalance  || 0,
+        referEarned:   r.referEarned   || 0,
+        createdAt:     r.createdAt,
         totalReferred,
-        depositedCount: deposited,
-        referEarned:    r.referEarned || 0,
-        referBalance:   r.referBalance || 0,
+        depositedCount,
       };
     }));
 
-    /* Sort by most referred */
     stats.sort((a, b) => b.totalReferred - a.totalReferred);
-
     res.json({ success: true, stats });
   } catch (e) {
     console.error("adminReferStats:", e);
