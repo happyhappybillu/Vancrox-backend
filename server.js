@@ -3,8 +3,9 @@ const express    = require("express");
 const cors       = require("cors");
 const connectDB  = require("./config/db");
 const cron       = require("node-cron");
-const autoReject   = require("./utils/autoReject");
-const depositCron  = require("./utils/depositCron");
+const autoReject    = require("./utils/autoReject");
+const depositCron   = require("./utils/depositCron");
+const midnightReset = require("./utils/midnightReset");
 
 const app = express();
 
@@ -48,6 +49,10 @@ cron.schedule("*/30 * * * * *", autoReject);
 /* ── DEPOSIT AUTO-VERIFY CRON — every 1 minute ── */
 cron.schedule("0 * * * * *", depositCron);
 console.log("⛓️  Blockchain deposit verifier running (every 60s)");
+
+/* ── MIDNIGHT RESET — every night at 00:00 ── */
+cron.schedule("0 0 * * *", midnightReset);
+console.log("🌙 Midnight reset scheduled (00:00 daily)");
 
 /* ── START ── */
 const PORT = process.env.PORT || 5000;

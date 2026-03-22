@@ -47,7 +47,8 @@ exports.resolveTicket = async (req, res) => {
     const ticket = await SupportTicket.findOne({ userId: req.user._id, status: "open" });
     if (!ticket) return res.status(404).json({ message: "No open ticket" });
 
-    ticket.status = "closed";
+    ticket.status   = "closed";
+    ticket.messages = []; // clear chat history on close
     await ticket.save();
 
     res.json({ success: true, message: "Ticket closed" });
@@ -93,7 +94,7 @@ exports.adminClose = async (req, res) => {
   try {
     const ticket = await SupportTicket.findByIdAndUpdate(
       req.params.id,
-      { status: "closed" },
+      { status: "closed", messages: [] }, // clear chat on close
       { new: true }
     );
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });

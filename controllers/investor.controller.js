@@ -247,7 +247,10 @@ exports.hireTrader = async (req, res) => {
 /* ── MY TRADES ── */
 exports.myTrades = async (req, res) => {
   try {
-    const trades = await Trade.find({ investorId: req.user._id })
+    const trades = await Trade.find({
+      investorId: req.user._id,
+      archived:   { $ne: true },  // hide midnight-reset trades
+    })
       .sort({ createdAt: -1 })
       .lean();
     res.json({ success: true, trades });

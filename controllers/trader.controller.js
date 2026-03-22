@@ -157,9 +157,10 @@ exports.deleteAd = async (req, res) => {
 /* ── GET MY TRADES ── */
 exports.getMyTrades = async (req, res) => {
   try {
-    const trades = await Trade.find({ traderId: req.user._id })
-      .sort({ createdAt: -1 })
-      .lean();
+    const trades = await Trade.find({
+      traderId: req.user._id,
+      archived: { $ne: true },
+    }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, trades });
   } catch (e) {
     console.error("getMyTrades:", e);
