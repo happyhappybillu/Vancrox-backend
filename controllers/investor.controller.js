@@ -18,10 +18,18 @@ exports.getTraders = async (req, res) => {
       isBlocked: false,
     }).select("name tid securityMoney traderLevel profilePhoto traderVerificationStatus").lean();
 
-    /* Attach ads to each trader */
-    const result = traders.map(t => ({
-      ...t,
-      ads: ads.filter(a => a.traderId.toString() === t._id.toString()),
+    /* Attach ads + last 3 completed trades for avg time calc */
+    const result = await Promise.all(traders.map(async t => {
+      const recentTrades = await Trade.find({
+        traderId: t._id,
+        status: "COMPLETED",
+      }).select("hireTime updatedAt status").sort({ updatedAt: -1 }).limit(3).lean();
+
+      return {
+        ...t,
+        ads: ads.filter(a => a.traderId.toString() === t._id.toString()),
+        recentTrades,
+      };
     }));
 
     res.json({ success: true, traders: result });
