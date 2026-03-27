@@ -1,10 +1,3 @@
-/**
- * VANCROX — Deposit Auto-Verify Cron
- * Runs every 60 seconds.
- * Scans blockchain for each pending deposit → auto-credits if found.
- * After 30 min window: marks as "expired" but admin can still manually approve.
- */
-
 const Approval    = require("../models/Approval");
 const Transaction = require("../models/Transaction");
 const User        = require("../models/User");
@@ -16,30 +9,27 @@ module.exports = async function depositCron() {
   try {
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
 
-    /* Active pending deposits (within 30 min window) */
-    const pendingDeposits = await Approval.find({
+    const pending = await Approval.find({
       type:      "DEPOSIT",
       status:    "pending",
       createdAt: { $gte: thirtyMinAgo },
     }).lean();
 
-    if (pendingDeposits.length) {
-      console.log(`🔍 Checking ${pendingDeposits.length} pending deposit(s)...`);
-    }
+    if (!pending.length) return;
+    console.log(`\n🔍 Checking ${pending.length} pending deposit(s)...`);
 
-    for (const dep of pendingDeposits) {
+    for (const dep of pending) {
       if (inProgress.has(dep._id.toString())) continue;
       inProgress.add(dep._id.toString());
-
       try {
+        console.log(`  Deposit: user=${dep.userName} network=${dep.depositNetwork} uniqueAmt=${dep.uniqueAmount}`);
         const result = await verifyDeposit({
           network:      dep.depositNetwork,
           uniqueAmount: dep.uniqueAmount,
         });
 
         if (result?.found) {
-          console.log(`✅ Auto-verified! TxHash: ${result.txHash} | $${result.amount} | ${result.network}`);
-
+          console.log(`✅ Verified! Amount=$${result.amount} TxHash=${result.txHash}`);
           await Approval.findByIdAndUpdate(dep._id, { status: "approved" });
           await User.findByIdAndUpdate(dep.userId, { $inc: { balance: dep.amount } });
           if (dep.transactionId) {
@@ -48,23 +38,17 @@ module.exports = async function depositCron() {
               note:   `Auto-verified. TxHash: ${result.txHash}`,
             });
           }
-
-          /* Refer bonus */
+          /* Refer bonus on first deposit */
           const investor = await User.findById(dep.userId);
           if (investor?.referredBy) {
-            const prevDeposits = await Transaction.countDocuments({
-              userId: dep.userId, type: "Deposit", status: "Completed",
-            });
-            if (prevDeposits === 1) {
+            const prev = await Transaction.countDocuments({ userId: dep.userId, type: "Deposit", status: "Completed" });
+            if (prev === 1) {
               const bonus = parseFloat((dep.amount * 0.10).toFixed(2));
-              await User.findByIdAndUpdate(investor.referredBy, {
-                $inc: { referBalance: bonus, referEarned: bonus },
-              });
+              await User.findByIdAndUpdate(investor.referredBy, { $inc: { referBalance: bonus, referEarned: bonus } });
               console.log(`🎁 Refer bonus $${bonus} credited`);
             }
           }
-
-          console.log(`💰 $${dep.amount} auto-credited to ${dep.userName}`);
+          console.log(`💰 $${dep.amount} credited to ${dep.userName}`);
         }
       } catch (err) {
         console.error(`Deposit check error for ${dep._id}:`, err.message);
@@ -73,22 +57,13 @@ module.exports = async function depositCron() {
       }
     }
 
-    /* Mark expired deposits (over 30 min) — keep as "expired" NOT "rejected"
-       so admin can still manually approve if needed */
-    const expired = await Approval.find({
-      type:      "DEPOSIT",
-      status:    "pending",
-      createdAt: { $lt: thirtyMinAgo },
-    });
-
+    /* Expire old deposits */
+    const expired = await Approval.find({ type: "DEPOSIT", status: "pending", createdAt: { $lt: thirtyMinAgo } });
     for (const dep of expired) {
       await Approval.findByIdAndUpdate(dep._id, { status: "expired" });
-      if (dep.transactionId) {
-        await Transaction.findByIdAndUpdate(dep.transactionId, { status: "Expired" });
-      }
-      console.log(`⏰ Deposit window expired for ${dep.userName} — admin can still approve manually`);
+      if (dep.transactionId) await Transaction.findByIdAndUpdate(dep.transactionId, { status: "Expired" });
+      console.log(`⏰ Expired: ${dep.userName}`);
     }
-
   } catch (err) {
     console.error("depositCron error:", err.message);
   }
