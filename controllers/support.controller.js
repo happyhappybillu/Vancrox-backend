@@ -3,7 +3,11 @@ const SupportTicket = require("../models/SupportTicket");
 /* ── USER: GET MY TICKET ── */
 exports.myTicket = async (req, res) => {
   try {
-    let ticket = await SupportTicket.findOne({ userId: req.user._id }).lean();
+    /* Only return open ticket — closed tickets have cleared messages */
+    let ticket = await SupportTicket.findOne({ 
+      userId: req.user._id,
+      status: "open"
+    }).lean();
     res.json({ success: true, ticket: ticket || null });
   } catch (e) {
     console.error("myTicket:", e);
