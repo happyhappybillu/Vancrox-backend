@@ -257,11 +257,22 @@ exports.myTrades = async (req, res) => {
   try {
     const trades = await Trade.find({
       investorId: req.user._id,
-      archived:   { $ne: true },  // hide midnight-reset trades
-    })
-      .sort({ createdAt: -1 })
-      .lean();
-    res.json({ success: true, trades });
+      archived:   { $ne: true },
+    }).sort({ createdAt: -1 }).lean();
+
+    /* Attach trader profilePhoto for each trade */
+    const traderIds = [...new Set(trades.map(t => t.traderId?.toString()).filter(Boolean))];
+    const traders = await User.find({ _id: { $in: traderIds } })
+      .select("_id profilePhoto").lean();
+    const traderMap = {};
+    traders.forEach(t => { traderMap[t._id.toString()] = t.profilePhoto || ""; });
+
+    const enriched = trades.map(t => ({
+      ...t,
+      traderPhoto: traderMap[t.traderId?.toString()] || "",
+    }));
+
+    res.json({ success: true, trades: enriched });
   } catch (e) {
     console.error("myTrades:", e);
     res.status(500).json({ message: "Server error" });
