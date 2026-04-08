@@ -192,6 +192,23 @@ exports.acceptTrade = async (req, res) => {
     trade.status = "ONGOING";
     await trade.save();
 
+    // Push notification to investor
+    try {
+      var trName = req.user ? (req.user.name || "Your trader") : "Your trader";
+      await Notification.create({
+        userId: trade.investorId,
+        title: "Trade is Now LIVE!",
+        message: trName + " has started your trade. Expected completion soon.",
+        type: "trade_live"
+      });
+      await sendPushToUser(
+        trade.investorId,
+        "Trade is Now LIVE! ⚡",
+        trName + " has started your trade.",
+        "trade_live"
+      );
+    } catch(pe){ console.log("Push send err:", pe.message); }
+
     res.json({ success: true, message: "Trade accepted!", trade });
   } catch (e) {
     console.error("acceptTrade:", e);
@@ -292,6 +309,25 @@ exports.setOutcome = async (req, res) => {
     const completedCount = await Trade.countDocuments({ traderId: req.user._id, status: "COMPLETED" });
     const newLevel = Math.min(10, Math.floor(completedCount / 10) + 1);
     await User.findByIdAndUpdate(req.user._id, { traderLevel: newLevel });
+
+    // Push to investor
+    try {
+      var msg = outcome === "profit"
+        ? "Profit +" + (trade.profitAmount||0).toFixed(2) + "$ credited to your balance!"
+        : "Trade closed. Capital fully refunded as per our guarantee.";
+      await Notification.create({
+        userId: trade.investorId,
+        title: outcome === "profit" ? "Trade Completed! 💰" : "Trade Completed! 🔄",
+        message: msg,
+        type: "trade_complete"
+      });
+      await sendPushToUser(
+        trade.investorId,
+        outcome === "profit" ? "Trade Completed! 💰" : "Trade Completed! 🔄",
+        msg,
+        "trade_complete"
+      );
+    } catch(pe){ console.log("Push err:", pe.message); }
 
     res.json({ success: true, message: outcome === "profit" ? "Profit recorded!" : "Loss recorded — investor refunded", trade });
   } catch (e) {
