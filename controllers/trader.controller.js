@@ -1,3 +1,4 @@
+const Notification = require("../models/Notification");
 const User        = require("../models/User");
 const Ad          = require("../models/Ad");
 const Trade       = require("../models/Trade");

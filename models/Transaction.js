@@ -10,7 +10,7 @@ const txSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ["Deposit", "Withdrawal", "Profit", "Loss Refund", "Commission", "Referral Bonus", "Referral Withdrawal"],
+      enum: ["Deposit", "Withdrawal", "Profit", "Loss Refund", "Referral Bonus", "Referral Withdrawal", "Expired", "Closed", "Commission"],
       required: true,
     },
 
