@@ -18,7 +18,7 @@ const tradeSchema = new mongoose.Schema(
     amount:    { type: Number, required: true },
 
     /* MARKET */
-    symbol:     { type: String, enum: ["XAUUSD", "BTCUSDT"], default: "XAUUSD" },
+    symbol:     { type: String, enum: ["XAUUSD", "BTCUSDT", "EURUSD", "GBPUSD"], default: "XAUUSD" },
     entryPrice: { type: Number, default: 0 },
 
     /* STATUS */

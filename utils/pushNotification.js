@@ -5,7 +5,7 @@ const webpush = require("web-push");
 // Then put them in .env
 webpush.setVapidDetails(
   "mailto:support@vancrox.tech",
-  process.env.VAPID_PUBLIC_KEY  || "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjZJJvXbRcX-HkWdRdF7Gp3kBBUow",
+  process.env.VAPID_PUBLIC_KEY || "BHsQn1Wc_u9MbraLjHlIChtLzq50AfFhzlnhS2XoqzyMV6jS53hWs9BRdsIsxVmd82XFQy28kgB8D54WzXgHlAo",
   process.env.VAPID_PRIVATE_KEY || "your_vapid_private_key_here"
 );
 

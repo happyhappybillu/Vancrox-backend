@@ -194,28 +194,13 @@ exports.acceptTrade = async (req, res) => {
 
     trade.status = "ONGOING";
 
-    // Fetch live entry price
+    // Get entry price from cache (no API call needed)
     try {
+      var { getPrice } = require("../utils/priceCache");
       var sym = trade.symbol || "XAUUSD";
-      var priceUrl = sym === "BTCUSDT"
-        ? "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
-        : "https://api.twelvedata.com/price?symbol=XAU/USD&apikey=2c9d560d29294b25bbb5e9b29d016542";
-      var https = require("https");
-      await new Promise(function(resolve) {
-        https.get(priceUrl, function(res) {
-          var body = "";
-          res.on("data", function(c){ body += c; });
-          res.on("end", function(){
-            try {
-              var parsed = JSON.parse(body);
-              var price = sym === "BTCUSDT" ? parseFloat(parsed.price) : parseFloat(parsed.price);
-              if (price && !isNaN(price)) trade.entryPrice = price;
-            } catch(e) {}
-            resolve();
-          });
-        }).on("error", resolve);
-      });
-    } catch(pe) { console.log("Entry price fetch err:", pe.message); }
+      var cachedPrice = getPrice(sym);
+      if (cachedPrice > 0) trade.entryPrice = cachedPrice;
+    } catch(pe) { console.log("Entry price err:", pe.message); }
 
     await trade.save();
 

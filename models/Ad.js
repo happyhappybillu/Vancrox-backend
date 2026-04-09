@@ -7,7 +7,7 @@ const adSchema = new mongoose.Schema(
     traderTid:   { type: Number, default: null },
     returnPct:   { type: Number, required: true, min: 1, max: 100 },
     tradeAmount: { type: Number, required: true },
-    symbol:      { type: String, enum: ["XAUUSD", "BTCUSDT"], default: "XAUUSD" },
+    symbol:      { type: String, enum: ["XAUUSD", "BTCUSDT", "EURUSD", "GBPUSD"], default: "XAUUSD" },
     active:      { type: Boolean, default: true, index: true },
   },
   { timestamps: true }
