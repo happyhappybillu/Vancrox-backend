@@ -1,15 +1,5 @@
 const mongoose = require("mongoose");
 
-/*
-  STATUS FLOW:
-  WAITING_TRADER_CONFIRMATION → (5 min timer)
-    → ONGOING (accepted)
-    → REJECTED_BY_TRADER (rejected)
-    → AUTO_REJECTED (timer expired)
-  ONGOING →
-    → COMPLETED (outcome set)
-*/
-
 const tradeSchema = new mongoose.Schema(
   {
     /* INVESTOR */
@@ -25,7 +15,11 @@ const tradeSchema = new mongoose.Schema(
     /* AD */
     adId:      { type: mongoose.Schema.Types.ObjectId, ref: "Ad", default: null },
     returnPct: { type: Number, required: true },
-    amount:    { type: Number, required: true }, // = trader securityMoney
+    amount:    { type: Number, required: true },
+
+    /* MARKET */
+    symbol:     { type: String, enum: ["XAUUSD", "BTCUSDT"], default: "XAUUSD" },
+    entryPrice: { type: Number, default: 0 },
 
     /* STATUS */
     status: {
@@ -41,13 +35,13 @@ const tradeSchema = new mongoose.Schema(
       index: true,
     },
 
-    hireTime:   { type: Date, default: Date.now }, // for 5-min countdown
+    hireTime: { type: Date, default: Date.now },
 
     /* OUTCOME */
     outcome:      { type: String, enum: ["profit", "loss", null], default: null },
-    profitAmount: { type: Number, default: 0 }, // investor profit
-    traderFee:    { type: Number, default: 0 }, // 10% of profit = trader earning
-    archived:     { type: Boolean, default: false }, // hidden after midnight reset
+    profitAmount: { type: Number, default: 0 },
+    traderFee:    { type: Number, default: 0 },
+    archived:     { type: Boolean, default: false },
   },
   { timestamps: true }
 );

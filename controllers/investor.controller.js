@@ -228,6 +228,7 @@ exports.hireTrader = async (req, res) => {
       adId:         ad._id,
       returnPct:    ad.returnPct,
       amount,
+      symbol:       ad.symbol || "XAUUSD",
       status:       "WAITING_TRADER_CONFIRMATION",
       hireTime:     new Date(),
     });
