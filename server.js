@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express    = require("express");
+const { startPriceCache } = require("./utils/priceCache");
 const cors       = require("cors");
 const connectDB  = require("./config/db");
 const cron       = require("node-cron");
@@ -24,6 +25,23 @@ connectDB().then(async () => {
   } catch (e) {
     console.error("referCode fix error:", e.message);
   }
+
+  // Migrate existing ads/trades — set default symbol if missing
+  try {
+    const Ad = require("./models/Ad");
+    const Trade = require("./models/Trade");
+    const adRes = await Ad.updateMany(
+      { $or: [{ symbol: { $exists: false } }, { symbol: null }, { symbol: "" }] },
+      { $set: { symbol: "XAUUSD" } }
+    );
+    const trRes = await Trade.updateMany(
+      { $or: [{ symbol: { $exists: false } }, { symbol: null }, { symbol: "" }] },
+      { $set: { symbol: "XAUUSD" } }
+    );
+    console.log(`✅ Symbol migration: ${adRes.modifiedCount} ads, ${trRes.modifiedCount} trades updated`);
+  } catch (me) {
+    console.log("Symbol migration skip:", me.message);
+  }
 });
 
 /* ── MIDDLEWARE ── */
@@ -36,6 +54,7 @@ app.use("/api/auth",          require("./routes/auth.routes"));
 app.use("/api/investor",      require("./routes/investor.routes"));
 app.use("/api/trader",        require("./routes/trader.routes"));
 app.use("/api/admin",         require("./routes/admin.routes"));
+app.use("/api/prices",        require("./routes/price.routes"));
 app.use("/api/notifications", require("./routes/notification.routes"));
 app.use("/api/support",       require("./routes/support.routes"));
 app.use("/api/refer",         require("./routes/refer.routes"));
