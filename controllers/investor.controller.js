@@ -25,9 +25,11 @@ exports.getTraders = async (req, res) => {
         status: "COMPLETED",
       }).select("hireTime updatedAt status").sort({ updatedAt: -1 }).limit(3).lean();
 
+      const traderAds = ads.filter(a => a.traderId.toString() === t._id.toString())
+        .map(ad => ({ ...ad, symbol: ad.symbol || "XAUUSD" }));
       return {
         ...t,
-        ads: ads.filter(a => a.traderId.toString() === t._id.toString()),
+        ads: traderAds,
         recentTrades,
       };
     }));
@@ -270,6 +272,8 @@ exports.myTrades = async (req, res) => {
 
     const enriched = trades.map(t => ({
       ...t,
+      symbol:     t.symbol || "XAUUSD",
+      entryPrice: t.entryPrice || 0,
       traderPhoto: traderMap[t.traderId?.toString()] || "",
     }));
 
