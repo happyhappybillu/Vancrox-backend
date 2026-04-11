@@ -266,15 +266,20 @@ exports.myTrades = async (req, res) => {
     /* Attach trader profilePhoto for each trade */
     const traderIds = [...new Set(trades.map(t => t.traderId?.toString()).filter(Boolean))];
     const traders = await User.find({ _id: { $in: traderIds } })
-      .select("_id profilePhoto").lean();
+      .select("_id profilePhoto tid").lean();
     const traderMap = {};
     traders.forEach(t => { traderMap[t._id.toString()] = t.profilePhoto || ""; });
 
+    // Also get traderTid for TID display
+    const traderTidMap = {};
+    traders.forEach(tr => { traderTidMap[tr._id.toString()] = tr.tid || null; });
+
     const enriched = trades.map(t => ({
       ...t,
-      symbol:     t.symbol || "XAUUSD",
-      entryPrice: t.entryPrice || 0,
+      symbol:      t.symbol || "XAUUSD",
+      entryPrice:  t.entryPrice || 0,
       traderPhoto: traderMap[t.traderId?.toString()] || "",
+      traderTid:   t.traderTid || traderTidMap[t.traderId?.toString()] || null,
     }));
 
     res.json({ success: true, trades: enriched });
