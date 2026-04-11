@@ -1,19 +1,35 @@
 const Notification = require("../models/Notification");
 const PushSubscription = require("../models/PushSubscription");
 
-/* ── GET ALL — investor sees own + general (no userId) ── */
+/* ── INVESTOR: GET own + general notifications ── */
 exports.getAll = async (req, res) => {
   try {
+    // Trade notifications (trade_live, trade_complete) only show if created today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
     const notifications = await Notification.find({
       $or: [
-        { userId: null },
+        // Admin broadcast (general, userId=null) — always show
+        { userId: null, type: "general" },
         { userId: { $exists: false } },
-        { userId: req.user._id }
+        // Own trade notifications — only today's
+        {
+          userId: req.user._id,
+          type: { $in: ["trade_live", "trade_complete"] },
+          createdAt: { $gte: todayStart }
+        },
+        // Own general notifications — always show
+        {
+          userId: req.user._id,
+          type: "general"
+        }
       ]
     })
     .sort({ createdAt: -1 })
     .limit(50)
     .lean();
+
     res.json({ success: true, notifications: notifications || [] });
   } catch (e) {
     console.error("getAll notif:", e);
@@ -39,11 +55,16 @@ exports.subscribe = async (req, res) => {
   }
 };
 
-/* ── ADMIN: GET ALL ── */
+/* ── ADMIN: GET ONLY admin-created notifications ── */
 exports.adminGetAll = async (req, res) => {
   try {
-    const notifications = await Notification.find()
-      .sort({ createdAt: -1 }).lean();
+    // Only show general broadcast notifications created by admin
+    const notifications = await Notification.find({
+      type: "general",
+      userId: null
+    })
+    .sort({ createdAt: -1 })
+    .lean();
     res.json({ success: true, notifications: notifications || [] });
   } catch (e) {
     res.status(500).json({ message: "Server error" });
@@ -61,7 +82,7 @@ exports.create = async (req, res) => {
       message: message.trim(),
       image: image || "",
       type: "general",
-      userId: null  // null = broadcast to all
+      userId: null
     });
     res.json({ success: true, message: "Notification sent to all", notification: notif });
   } catch (e) {
