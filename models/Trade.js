@@ -41,6 +41,7 @@ const tradeSchema = new mongoose.Schema(
     outcome:      { type: String, enum: ["profit", "loss", null], default: null },
     profitAmount: { type: Number, default: 0 },
     traderFee:    { type: Number, default: 0 },
+    closePrice:   { type: Number, default: 0 },
     archived:     { type: Boolean, default: false },
   },
   { timestamps: true }

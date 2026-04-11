@@ -271,6 +271,13 @@ exports.setOutcome = async (req, res) => {
     trade.outcome = outcome;
     trade.status  = "COMPLETED";
 
+    // Save close price
+    try {
+      var { getPrice } = require("../utils/priceCache");
+      var cp = getPrice(trade.symbol || "XAUUSD");
+      if (cp > 0) trade.closePrice = cp;
+    } catch(cpe) { console.log("Close price:", cpe.message); }
+
     if (outcome === "profit") {
       /* Profit = amount * returnPct / 100 */
       const profit    = parseFloat(((trade.amount * trade.returnPct) / 100).toFixed(2));

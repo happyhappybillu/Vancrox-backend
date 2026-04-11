@@ -281,6 +281,7 @@ exports.myTrades = async (req, res) => {
       ...t,
       symbol:      t.symbol || "XAUUSD",
       entryPrice:  t.entryPrice || 0,
+      closePrice:  t.closePrice || 0,
       traderPhoto: traderMap[t.traderId?.toString()] || "",
       traderTid:   t.traderTid || traderTidMap[t.traderId?.toString()] || null,
     }));
