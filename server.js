@@ -30,12 +30,13 @@ connectDB().then(async () => {
   try {
     const Ad = require("./models/Ad");
     const Trade = require("./models/Trade");
+    const validSyms = ["XAUUSD", "BTCUSDT", "EURUSD", "GBPUSD"];
     const adRes = await Ad.updateMany(
-      { $or: [{ symbol: { $exists: false } }, { symbol: null }, { symbol: "" }] },
+      { $or: [{ symbol: { $exists: false } }, { symbol: null }, { symbol: "" }, { symbol: { $nin: validSyms } }] },
       { $set: { symbol: "XAUUSD" } }
     );
     const trRes = await Trade.updateMany(
-      { $or: [{ symbol: { $exists: false } }, { symbol: null }, { symbol: "" }] },
+      { $or: [{ symbol: { $exists: false } }, { symbol: null }, { symbol: "" }, { symbol: { $nin: validSyms } }] },
       { $set: { symbol: "XAUUSD" } }
     );
     console.log(`✅ Symbol migration: ${adRes.modifiedCount} ads, ${trRes.modifiedCount} trades updated`);

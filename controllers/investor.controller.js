@@ -26,7 +26,10 @@ exports.getTraders = async (req, res) => {
       }).select("hireTime updatedAt status").sort({ updatedAt: -1 }).limit(3).lean();
 
       const traderAds = ads.filter(a => a.traderId.toString() === t._id.toString())
-        .map(ad => ({ ...ad, symbol: ad.symbol || "XAUUSD" }));
+        .map(ad => {
+          const sym = ad.symbol && ["XAUUSD","BTCUSDT","EURUSD","GBPUSD"].includes(ad.symbol) ? ad.symbol : "XAUUSD";
+          return { ...ad, symbol: sym };
+        });
       return {
         ...t,
         ads: traderAds,
