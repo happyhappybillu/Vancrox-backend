@@ -1,41 +1,43 @@
 /**
  * VANCROX — Midnight Reset
- * Runs at 00:00 every night
- * Archives completed/rejected trades
- * closePrice already saved in DB when trade completed — preserved
+ * Runs at 00:00 every night:
+ * 1. Archive ALL completed/rejected trades → My Traders section clean
+ * 2. Delete today's trade notifications (trade_live, trade_complete)
  */
 
-const Trade = require("../models/Trade");
+const Trade        = require("../models/Trade");
+const Notification = require("../models/Notification");
 const { getPrice } = require("./priceCache");
 
 module.exports = async function midnightReset() {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
 
-    // Find completed trades that are not archived yet
+    // ══ 1. Archive ALL completed/rejected trades (not just before today) ══
     const toArchive = await Trade.find({
-      status: { $in: ["COMPLETED", "REJECTED_BY_TRADER", "AUTO_REJECTED"] },
+      status:   { $in: ["COMPLETED", "REJECTED_BY_TRADER", "AUTO_REJECTED"] },
       archived: { $ne: true },
-      updatedAt: { $lt: today },
     }).lean();
-
-    if (!toArchive.length) return;
 
     for (const trade of toArchive) {
       const update = { archived: true };
-      // If closePrice was never saved (legacy trades) — save current price now
+      // Save closePrice for legacy trades that don't have it
       if (!(trade.closePrice > 0)) {
         try {
-          const sym = trade.symbol || "XAUUSD";
-          const cp = getPrice(sym);
+          const cp = getPrice(trade.symbol || "XAUUSD");
           if (cp > 0) update.closePrice = cp;
         } catch(e) {}
       }
       await Trade.findByIdAndUpdate(trade._id, { $set: update });
     }
+    console.log(`🌙 My Traders reset: archived ${toArchive.length} trades`);
 
-    console.log(`🌙 Midnight reset: archived ${toArchive.length} trades with closePrice preserved`);
+    // ══ 2. Delete trade notifications (trade_live, trade_complete) ══
+    const notifRes = await Notification.deleteMany({
+      type: { $in: ["trade_live", "trade_complete"] }
+    });
+    console.log(`🔔 Notifications reset: deleted ${notifRes.deletedCount} trade notifications`);
+
   } catch (e) {
     console.error("midnightReset error:", e.message);
   }

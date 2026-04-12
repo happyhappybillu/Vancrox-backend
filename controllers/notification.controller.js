@@ -4,26 +4,11 @@ const PushSubscription = require("../models/PushSubscription");
 /* ── INVESTOR: GET own + general notifications ── */
 exports.getAll = async (req, res) => {
   try {
-    // Trade notifications (trade_live, trade_complete) only show if created today
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
     const notifications = await Notification.find({
       $or: [
-        // Admin broadcast (general, userId=null) — always show
         { userId: null, type: "general" },
         { userId: { $exists: false } },
-        // Own trade notifications — only today's
-        {
-          userId: req.user._id,
-          type: { $in: ["trade_live", "trade_complete"] },
-          createdAt: { $gte: todayStart }
-        },
-        // Own general notifications — always show
-        {
-          userId: req.user._id,
-          type: "general"
-        }
+        { userId: req.user._id }
       ]
     })
     .sort({ createdAt: -1 })

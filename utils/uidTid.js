@@ -2,7 +2,7 @@ const User = require("../models/User");
 
 async function generateUID() {
   const last = await User.findOne({ role: "investor", uid: { $gt: 0 } }).sort({ uid: -1 }).lean();
-  return last?.uid ? last.uid + 1 : 10001;
+  return last?.uid ? last.uid + 1 : 10501;
 }
 
 async function generateTID() {
