@@ -30,4 +30,6 @@ router.get("/tickets",                    ...guard, sup.adminGetAll);
 router.post("/tickets/:id/reply",         ...guard, sup.adminReply);
 router.post("/tickets/:id/close",         ...guard, sup.adminClose);
 
+router.get("/search-users", protect, requireRole("admin"), admin.searchUsers);
+router.delete("/delete-user", protect, requireRole("admin"), admin.deleteUser);
 module.exports = router;

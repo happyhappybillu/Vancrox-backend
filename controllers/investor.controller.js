@@ -340,3 +340,38 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+/* ── DELETE OWN ACCOUNT ── */
+exports.deleteAccount = async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ message: "Password required" });
+
+    const bcrypt = require("bcryptjs");
+    const user = await User.findById(req.user._id).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ message: "Incorrect password" });
+
+    // Delete all user data permanently
+    const Trade        = require("../models/Trade");
+    const Transaction  = require("../models/Transaction");
+    const Notification = require("../models/Notification");
+    const PushSubscription = require("../models/PushSubscription");
+    const SupportTicket = require("../models/SupportTicket");
+
+    await Trade.deleteMany({ investorId: req.user._id });
+    await Transaction.deleteMany({ userId: req.user._id });
+    await Notification.deleteMany({ userId: req.user._id });
+    await PushSubscription.deleteMany({ userId: req.user._id });
+    await SupportTicket.deleteMany({ investorId: req.user._id });
+    await User.findByIdAndDelete(req.user._id);
+
+    console.log(`🗑️ Account deleted: ${user.email} (UID${user.uid})`);
+    res.json({ success: true, message: "Account permanently deleted" });
+  } catch (e) {
+    console.error("deleteAccount:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+};

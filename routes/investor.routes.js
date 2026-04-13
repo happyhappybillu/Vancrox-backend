@@ -14,4 +14,5 @@ router.get("/history",         ...guard, inv.history);
 router.post("/wallet",         ...guard, inv.saveWallet);
 router.post("/profile",        ...guard, inv.updateProfile);
 
+router.post("/delete-account", protect, requireRole("investor"), investor.deleteAccount);
 module.exports = router;

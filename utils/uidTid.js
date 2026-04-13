@@ -8,7 +8,7 @@ async function generateUID() {
 
 async function generateTID() {
   const last = await User.findOne({ role: "trader", tid: { $gt: 0 } }).sort({ tid: -1 }).lean();
-  return last?.tid ? last.tid + 1 : 50555;
+  return last?.tid ? last.tid + 1 : 50001;
 }
 
 module.exports = { generateUID, generateTID };

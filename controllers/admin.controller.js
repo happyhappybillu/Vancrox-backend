@@ -309,3 +309,63 @@ exports.closeDeposit = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+/* ── SEARCH USERS (for deletion) ── */
+exports.searchUsers = async (req, res) => {
+  try {
+    const { q, role } = req.query;
+    if (!q) return res.json({ success: true, users: [] });
+    const regex = new RegExp(q.replace("UID","").replace("TID",""), "i");
+    const query = {
+      role: role || "investor",
+      $or: [
+        { name: regex },
+        { email: regex },
+        { uid: parseInt(q.replace("UID","")) || -1 },
+        { tid: parseInt(q.replace("TID","")) || -1 },
+      ]
+    };
+    const users = await User.find(query).select("name email uid tid role").limit(10).lean();
+    res.json({ success: true, users });
+  } catch(e) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ── DELETE ANY USER (admin) ── */
+exports.deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: "userId required" });
+
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.role === "admin") return res.status(403).json({ message: "Cannot delete admin" });
+
+    const Trade        = require("../models/Trade");
+    const Transaction  = require("../models/Transaction");
+    const Notification = require("../models/Notification");
+    const PushSubscription = require("../models/PushSubscription");
+    const SupportTicket = require("../models/SupportTicket");
+    const Ad           = require("../models/Ad");
+
+    if (user.role === "investor") {
+      await Trade.deleteMany({ investorId: userId });
+      await Transaction.deleteMany({ userId });
+    } else if (user.role === "trader") {
+      await Trade.deleteMany({ traderId: userId });
+      await Ad.deleteMany({ traderId: userId });
+    }
+
+    await Notification.deleteMany({ userId });
+    await PushSubscription.deleteMany({ userId });
+    await SupportTicket.deleteMany({ $or: [{ investorId: userId }, { traderId: userId }] });
+    await User.findByIdAndDelete(userId);
+
+    console.log(`🗑️ Admin deleted user: ${user.email} (${user.role})`);
+    res.json({ success: true, message: "User permanently deleted" });
+  } catch(e) {
+    console.error("adminDeleteUser:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+};

@@ -111,7 +111,7 @@ exports.createAd = async (req, res) => {
       });
     }
 
-    const validSym = ["XAUUSD","BTCUSDT"].includes(symbol) ? symbol : "XAUUSD";
+    const validSym = ["XAUUSD","BTCUSDT","EURUSD","GBPUSD"].includes(symbol) ? symbol : "XAUUSD";
     const ad = await Ad.create({
       traderId:    trader._id,
       traderName:  trader.name,
