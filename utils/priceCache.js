@@ -49,14 +49,16 @@ async function refreshPrices() {
       PRICE_CACHE.BTCUSDT = parseFloat(btc.price);
     }
 
-    // 3. EUR/USD + GBP/USD — Frankfurter (unlimited, free, both in 1 call)
-    var forex = await fetchJson(
-      "https://api.frankfurter.app/latest?from=USD&to=EUR,GBP"
-    );
-    if (forex && forex.rates) {
-      // Frankfurter gives USD→EUR, we need EUR→USD
-      if (forex.rates.EUR) PRICE_CACHE.EURUSD = parseFloat((1 / forex.rates.EUR).toFixed(5));
-      if (forex.rates.GBP) PRICE_CACHE.GBPUSD = parseFloat((1 / forex.rates.GBP).toFixed(5));
+    // 3. EUR/USD — direct from Frankfurter
+    var eurData = await fetchJson("https://api.frankfurter.app/latest?from=EUR&to=USD");
+    if (eurData && eurData.rates && eurData.rates.USD) {
+      PRICE_CACHE.EURUSD = parseFloat(parseFloat(eurData.rates.USD).toFixed(5));
+    }
+
+    // 4. GBP/USD — direct from Frankfurter
+    var gbpData = await fetchJson("https://api.frankfurter.app/latest?from=GBP&to=USD");
+    if (gbpData && gbpData.rates && gbpData.rates.USD) {
+      PRICE_CACHE.GBPUSD = parseFloat(parseFloat(gbpData.rates.USD).toFixed(5));
     }
 
     PRICE_CACHE.updatedAt = new Date().toISOString();

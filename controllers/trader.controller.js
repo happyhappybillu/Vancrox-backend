@@ -278,9 +278,9 @@ exports.setOutcome = async (req, res) => {
       var priceUrl2 = sym2 === "BTCUSDT"
         ? "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
         : sym2 === "EURUSD"
-        ? "https://api.frankfurter.app/latest?from=USD&to=EUR"
+        ? "https://api.frankfurter.app/latest?from=EUR&to=USD"
         : sym2 === "GBPUSD"
-        ? "https://api.frankfurter.app/latest?from=USD&to=GBP"
+        ? "https://api.frankfurter.app/latest?from=GBP&to=USD"
         : "https://api.twelvedata.com/price?symbol=XAU/USD&apikey=2c9d560d29294b25bbb5e9b29d016542";
 
       var closeP = await new Promise(function(resolve){
@@ -291,8 +291,8 @@ exports.setOutcome = async (req, res) => {
             try{
               var d=JSON.parse(body);
               if(sym2==="BTCUSDT") resolve(parseFloat(d.price)||0);
-              else if(sym2==="EURUSD"&&d.rates&&d.rates.EUR) resolve(parseFloat((1/d.rates.EUR).toFixed(5))||0);
-              else if(sym2==="GBPUSD"&&d.rates&&d.rates.GBP) resolve(parseFloat((1/d.rates.GBP).toFixed(5))||0);
+              else if((sym2==="EURUSD"||sym2==="GBPUSD")&&d.rates&&d.rates.USD) resolve(parseFloat(d.rates.USD)||0);
+              
               else resolve(parseFloat(d.price)||0);
             }catch(e){resolve(0);}
           });

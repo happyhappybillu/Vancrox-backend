@@ -348,7 +348,7 @@ exports.deleteAccount = async (req, res) => {
     if (!password) return res.status(400).json({ message: "Password required" });
 
     const bcrypt = require("bcryptjs");
-    const user = await User.findById(req.user._id).lean();
+    const user = await User.findById(req.user._id).select("+password").lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const match = await bcrypt.compare(password, user.password);
