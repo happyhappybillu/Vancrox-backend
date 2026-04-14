@@ -49,16 +49,28 @@ async function refreshPrices() {
       PRICE_CACHE.BTCUSDT = parseFloat(btc.price);
     }
 
-    // 3. EUR/USD — direct from Frankfurter
-    var eurData = await fetchJson("https://api.frankfurter.app/latest?from=EUR&to=USD");
-    if (eurData && eurData.rates && eurData.rates.USD) {
-      PRICE_CACHE.EURUSD = parseFloat(parseFloat(eurData.rates.USD).toFixed(5));
+    // 3. EUR/USD + GBP/USD — Frankfurter (both in 1 call, inversion method)
+    var forexData = await fetchJson("https://api.frankfurter.app/latest?from=USD&to=EUR,GBP");
+    if (forexData && forexData.rates) {
+      if (forexData.rates.EUR && forexData.rates.EUR > 0) {
+        PRICE_CACHE.EURUSD = parseFloat((1 / forexData.rates.EUR).toFixed(5));
+      }
+      if (forexData.rates.GBP && forexData.rates.GBP > 0) {
+        PRICE_CACHE.GBPUSD = parseFloat((1 / forexData.rates.GBP).toFixed(5));
+      }
     }
-
-    // 4. GBP/USD — direct from Frankfurter
-    var gbpData = await fetchJson("https://api.frankfurter.app/latest?from=GBP&to=USD");
-    if (gbpData && gbpData.rates && gbpData.rates.USD) {
-      PRICE_CACHE.GBPUSD = parseFloat(parseFloat(gbpData.rates.USD).toFixed(5));
+    // Fallback: direct calls if combined failed
+    if (!PRICE_CACHE.EURUSD) {
+      var eurDirect = await fetchJson("https://api.frankfurter.app/latest?from=EUR&to=USD");
+      if (eurDirect && eurDirect.rates && eurDirect.rates.USD) {
+        PRICE_CACHE.EURUSD = parseFloat(eurDirect.rates.USD.toFixed(5));
+      }
+    }
+    if (!PRICE_CACHE.GBPUSD) {
+      var gbpDirect = await fetchJson("https://api.frankfurter.app/latest?from=GBP&to=USD");
+      if (gbpDirect && gbpDirect.rates && gbpDirect.rates.USD) {
+        PRICE_CACHE.GBPUSD = parseFloat(gbpDirect.rates.USD.toFixed(5));
+      }
     }
 
     PRICE_CACHE.updatedAt = new Date().toISOString();
