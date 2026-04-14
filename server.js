@@ -43,6 +43,9 @@ connectDB().then(async () => {
   } catch (me) {
     console.log("Symbol migration skip:", me.message);
   }
+
+  // Start price cache AFTER DB is connected
+  startPriceCache();
 });
 
 /* ── MIDDLEWARE ── */
