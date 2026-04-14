@@ -359,7 +359,7 @@ exports.deleteUser = async (req, res) => {
 
     await Notification.deleteMany({ userId });
     await PushSubscription.deleteMany({ userId });
-    await SupportTicket.deleteMany({ $or: [{ investorId: userId }, { traderId: userId }] });
+    await SupportTicket.deleteMany({ userId: userId });
     await User.findByIdAndDelete(userId);
 
     console.log(`🗑️ Admin deleted user: ${user.email} (${user.role})`);

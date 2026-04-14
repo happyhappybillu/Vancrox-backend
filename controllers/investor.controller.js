@@ -365,7 +365,7 @@ exports.deleteAccount = async (req, res) => {
     await Transaction.deleteMany({ userId: req.user._id });
     await Notification.deleteMany({ userId: req.user._id });
     await PushSubscription.deleteMany({ userId: req.user._id });
-    await SupportTicket.deleteMany({ investorId: req.user._id });
+    await SupportTicket.deleteMany({ userId: req.user._id });
     await User.findByIdAndDelete(req.user._id);
 
     console.log(`🗑️ Account deleted: ${user.email} (UID${user.uid})`);
