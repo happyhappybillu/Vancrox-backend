@@ -271,37 +271,24 @@ exports.setOutcome = async (req, res) => {
     trade.outcome = outcome;
     trade.status  = "COMPLETED";
 
-    // Save close price — fetch live directly for accuracy
+    // Save close price from backend cache
     try {
+      var { getPrice } = require("../utils/priceCache");
       var sym2 = trade.symbol || "XAUUSD";
-      var https2 = require("https");
-      var priceUrl2 = sym2 === "BTCUSDT"
-        ? "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
-        : sym2 === "EURUSD"
-        ? "https://api.frankfurter.app/latest?from=EUR&to=USD"
-        : sym2 === "GBPUSD"
-        ? "https://api.frankfurter.app/latest?from=GBP&to=USD"
-        : "https://api.twelvedata.com/price?symbol=XAU/USD&apikey=2c9d560d29294b25bbb5e9b29d016542";
-
-      var closeP = await new Promise(function(resolve){
-        https2.get(priceUrl2, function(res){
-          var body="";
-          res.on("data",function(c){body+=c;});
-          res.on("end",function(){
-            try{
-              var d=JSON.parse(body);
-              if(sym2==="BTCUSDT") resolve(parseFloat(d.price)||0);
-              else if((sym2==="EURUSD"||sym2==="GBPUSD")&&d.rates&&d.rates.USD) resolve(parseFloat(d.rates.USD)||0);
-              
-              else resolve(parseFloat(d.price)||0);
-            }catch(e){resolve(0);}
-          });
-        }).on("error",function(){resolve(0);});
-      });
-
-      if(closeP>0){
-        trade.closePrice=closeP;
-        console.log("ClosePrice saved:", sym2, closeP);
+      var cachedClose = getPrice(sym2);
+      if (cachedClose > 0) {
+        trade.closePrice = cachedClose;
+        console.log("✅ ClosePrice saved from cache:", sym2, cachedClose);
+      } else {
+        // Fallback: fetch live
+        var https2 = require("https");
+        var priceUrl2 = sym2 === "BTCUSDT"
+          ? "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+          : "https://api.twelvedata.com/price?symbol=XAU/USD&apikey=2c9d560d29294b25bbb5e9b29d016542";
+        var closeP = await new Promise(function(resolve){
+          https2.get(priceUrl2,function(res){var body="";res.on("data",function(c){body+=c;});res.on("end",function(){try{var d=JSON.parse(body);resolve(parseFloat(d.price)||0);}catch(e){resolve(0);}});}).on("error",function(){resolve(0);});
+        });
+        if(closeP>0) trade.closePrice=closeP;
       }
     } catch(cpe){ console.log("Close price err:", cpe.message); }
 
