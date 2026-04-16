@@ -263,7 +263,7 @@ exports.myTrades = async (req, res) => {
   try {
     const trades = await Trade.find({
       investorId: req.user._id,
-      archived:   { $ne: true },
+      $or: [{ archived: false }, { archived: null }, { archived: { $exists: false } }]
     }).sort({ createdAt: -1 }).lean();
 
     /* Attach trader profilePhoto for each trade */

@@ -73,9 +73,22 @@ cron.schedule("*/30 * * * * *", autoReject);
 cron.schedule("0 * * * * *", depositCron);
 console.log("⛓️  Blockchain deposit verifier running (every 60s)");
 
-/* ── MIDNIGHT RESET — every night at 00:00 ── */
-cron.schedule("0 0 * * *", midnightReset);
-console.log("🌙 Midnight reset scheduled (00:00 daily)");
+/* ── MIDNIGHT RESET — 00:00 IST = 18:30 UTC ── */
+cron.schedule("0 30 18 * * *", midnightReset);  // 18:30 UTC = 00:00 IST
+cron.schedule("0 0 0 * * *",  midnightReset);  // Also at 00:00 UTC as backup
+console.log("🌙 Midnight reset scheduled (00:00 IST + 00:00 UTC daily)");
+
+/* ── MANUAL RESET TRIGGER (admin only) ── */
+app.post("/api/admin/trigger-reset", async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ message: "Unauthorized" });
+  try {
+    await midnightReset();
+    res.json({ success: true, message: "Reset done" });
+  } catch(e) {
+    res.status(500).json({ message: e.message });
+  }
+});
 
 /* ── START ── */
 const PORT = process.env.PORT || 5000;
