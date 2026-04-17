@@ -86,6 +86,25 @@ exports.adminReply = async (req, res) => {
     ticket.messages.push({ from: "admin", text: message.trim() });
     await ticket.save();
 
+    // Send notification to investor
+    try {
+      const Notification = require("../models/Notification");
+      await Notification.create({
+        userId: ticket.userId,
+        type:   "support_reply",
+        title:  "Support Team Replied",
+        message: "Your support query has received a response from our team. Tap to view.",
+      });
+      // Push notification
+      const { sendPushToUser } = require("../utils/pushNotification");
+      await sendPushToUser(
+        ticket.userId,
+        "💬 Support Team Replied",
+        "Your support query has received a response. Tap to view.",
+        "support_reply"
+      );
+    } catch(ne){ console.log("Support notif err:", ne.message); }
+
     res.json({ success: true, ticket });
   } catch (e) {
     console.error("adminReply:", e);
