@@ -71,6 +71,12 @@ cron.schedule("*/30 * * * * *", autoReject);
 
 /* ── DEPOSIT AUTO-VERIFY CRON — every 1 minute ── */
 cron.schedule("0 * * * * *", depositCron);
+
+/* ── NOWPAYMENTS DEPOSIT CRON — every 3 minutes ── */
+const npDepositCron = require("./utils/npDepositCron");
+cron.schedule("0 */3 * * * *", npDepositCron);
+console.log("💳 NowPayments deposit cron running (every 3 min)");
+
 console.log("⛓️  Blockchain deposit verifier running (every 60s)");
 
 /* ── MIDNIGHT RESET — 00:00 IST = 18:30 UTC ── */
