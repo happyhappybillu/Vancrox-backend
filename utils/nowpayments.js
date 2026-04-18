@@ -77,12 +77,19 @@ async function getPaymentStatus(paymentId) {
 }
 
 /* Verify IPN signature */
-function verifyIPN(body, receivedSig) {
+function verifyIPN(rawBody, receivedSig) {
   const crypto = require("crypto");
   const secret = process.env.NOWPAYMENTS_IPN_SECRET || "";
-  const sorted = JSON.stringify(sortObject(JSON.parse(typeof body === "string" ? body : JSON.stringify(body))));
-  const sig = crypto.createHmac("sha512", secret).update(sorted).digest("hex");
-  return sig === receivedSig;
+  try {
+    const parsed = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody;
+    const sorted = JSON.stringify(sortObject(parsed));
+    const sig = crypto.createHmac("sha512", secret).update(sorted).digest("hex");
+    console.log("IPN verify — expected:", sig.slice(0,20), "received:", receivedSig?.slice(0,20));
+    return sig === receivedSig;
+  } catch(e) {
+    console.error("verifyIPN error:", e.message);
+    return false;
+  }
 }
 
 function sortObject(obj) {

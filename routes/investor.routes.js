@@ -18,6 +18,18 @@ router.post("/profile",        ...guard, inv.updateProfile);
 router.post("/delete-account", protect, requireRole("investor"), inv.deleteAccount);
 router.post("/deposit/cancel", ...guard, inv.cancelDeposit);
 // NowPayments
-router.post("/nowpayments/webhook", express.raw({type:"application/json"}), inv.nowPaymentsWebhook);
+// Webhook needs raw body for signature verification, but also parse JSON
+router.post("/nowpayments/webhook", 
+  (req, res, next) => {
+    let raw = "";
+    req.on("data", c => raw += c);
+    req.on("end", () => {
+      req.rawBody = raw;
+      try { req.body = JSON.parse(raw); } catch(e) { req.body = {}; }
+      next();
+    });
+  },
+  inv.nowPaymentsWebhook
+);
 router.get("/payment/status/:paymentId", ...guard, inv.checkPayment);
 module.exports = router;
