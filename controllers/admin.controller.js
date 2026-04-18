@@ -79,6 +79,16 @@ exports.approveItem = async (req, res) => {
     if (approval.type === "WITHDRAWAL") {
       if (approval.transactionId)
         await Transaction.findByIdAndUpdate(approval.transactionId, { status: "Completed" });
+      // Notify investor
+      try {
+        const Notif = require("../models/Notification");
+        const amt = approval.amount || 0;
+        await Notif.create({
+          userId: approval.userId, type: "general",
+          title: "✅ Withdrawal Approved",
+          message: `Your withdrawal of $${parseFloat(amt).toFixed(2)} USDT has been approved and sent to your wallet.`
+        });
+      } catch(ne){}
     }
 
     /* ── DEPOSIT approved → credit investor balance ── */

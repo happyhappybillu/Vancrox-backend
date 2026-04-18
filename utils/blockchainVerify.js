@@ -123,7 +123,10 @@ async function checkBEP20(walletAddress, expectedAmount) {
     for (const tx of data.result) {
       if (parseInt(tx.timeStamp) < cutoff) break;
       if (tx.to.toLowerCase() !== walletAddress.toLowerCase()) continue;
-      const amount = parseFloat(tx.value) / 1e18;
+      // BSC USDT can be 18 decimals (Binance-Peg) or 6 decimals — try both
+      var amt18=parseFloat(tx.value)/1e18;
+      var amt6=parseFloat(tx.value)/1e6;
+      const amount=Math.abs(amt18-expectedAmount)<Math.abs(amt6-expectedAmount)?amt18:amt6;
       console.log(`  BEP20 tx: ${amount} USDT`);
       if (Math.abs(amount - expectedAmount) < 0.01) {
         return { found: true, txHash: tx.hash, amount, confirmations: parseInt(tx.confirmations || 0), network: "BEP20" };

@@ -65,71 +65,322 @@ exports.getPlatformWallet = async (req, res) => {
 /* ── INIT DEPOSIT (blockchain auto-verify) ── */
 exports.initDeposit = async (req, res) => {
   try {
-    const { network, amount, uniqueAmount } = req.body;
-    if (!network || !amount || !uniqueAmount)
-      return res.status(400).json({ message: "network, amount, uniqueAmount required" });
-    if (!["TRC20", "ERC20", "BEP20"].includes(network))
-      return res.status(400).json({ message: "network must be TRC20, ERC20, or BEP20" });
-    if (amount < 10) return res.status(400).json({ message: "Minimum deposit is $10" });
+    const { coin, amount } = req.body;
+    if (!coin || !amount) return res.status(400).json({ message: "coin and amount required" });
+    if (amount < 5) return res.status(400).json({ message: "Minimum deposit is $5" });
 
-    /* Check platform wallet is configured */
-    const walletKey = `WALLET_${network}`;
-    if (!process.env[walletKey])
-      return res.status(500).json({ message: `Platform ${network} wallet not configured` });
+    const { createPayment, CURRENCY_MAP } = require("../utils/nowpayments");
+    if (!CURRENCY_MAP[coin]) return res.status(400).json({ message: "Unsupported coin: " + coin });
 
     const user = req.user;
+    const orderId = `VC-${user.uid}-${Date.now()}`;
 
-    /* Check no duplicate pending deposit for same user+network */
-    const existing = await Approval.findOne({
-      userId: user._id,
-      type:   "DEPOSIT",
-      status: "pending",
-      depositNetwork: network,
+    const payment = await createPayment({
+      amount, coin, orderId,
+      description: `VANCROX Deposit - UID${user.uid}`
     });
-    if (existing) {
-      return res.status(400).json({
-        message: "You already have a pending deposit on this network. Wait for it to confirm or expire.",
-      });
-    }
 
-    /* Create pending transaction */
     const tx = await Transaction.create({
-      userId:       user._id,
-      userName:     user.name,
-      userRole:     "investor",
-      uid:          user.uid,
-      type:         "Deposit",
-      amount:       parseFloat(amount),
-      uniqueAmount: parseFloat(uniqueAmount),
-      network,
-      status:       "Pending",
+      userId: user._id, userName: user.name, userRole: "investor", uid: user.uid,
+      type: "Deposit", amount: parseFloat(amount), network: coin, status: "Pending",
+      note: `NowPayments ID: ${payment.payment_id}`,
     });
 
-    /* Create approval — blockchain cron will auto-approve when tx found */
     await Approval.create({
-      type:           "DEPOSIT",
-      status:         "pending",
-      userId:         user._id,
-      userName:       user.name,
-      userRole:       "investor",
-      uid:            user.uid,
-      amount:         parseFloat(amount),
-      uniqueAmount:   parseFloat(uniqueAmount),
-      depositNetwork: network,
-      transactionId:  tx._id,
+      type: "DEPOSIT", status: "pending",
+      userId: user._id, userName: user.name, userRole: "investor", uid: user.uid,
+      amount: parseFloat(amount), depositNetwork: coin,
+      transactionId: tx._id,
+      npPaymentId: payment.payment_id, npOrderId: orderId,
     });
 
     res.json({
-      success:    true,
-      message:    "Deposit initiated. Blockchain is being monitored. Balance will auto-credit after confirmations.",
-      walletAddress: process.env[walletKey],
-      network,
-      uniqueAmount: parseFloat(uniqueAmount),
-      expiresIn:  "30 minutes",
+      success: true,
+      paymentId:   payment.payment_id,
+      payAddress:  payment.pay_address,
+      payAmount:   payment.pay_amount,
+      payCurrency: payment.pay_currency,
+      network:     coin,
+      expiresAt:   payment.expiration_estimate_date,
     });
-  } catch (e) {
-    console.error("initDeposit:", e);
-    res.status(500).json({ message: "Server error" });
+  } catch(e) {
+    console.error("initDeposit:", e.message);
+    res.status(500).json({ message: "Payment gateway error: " + e.message });
+  }
+};
+
+/* ── NOWPAYMENTS WEBHOOK ── */
+exports.nowPaymentsWebhook = async (req, res) => {
+  try {
+    const { verifyIPN } = require("../utils/nowpayments");
+    const sig = req.headers["x-nowpayments-sig"];
+    const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    if (!sig || !verifyIPN(rawBody, sig)) {
+      console.error("❌ Invalid IPN signature");
+      return res.status(401).json({ message: "Invalid signature" });
+    }
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { payment_id, payment_status, price_amount } = body;
+    console.log(`📩 IPN: id=${payment_id} status=${payment_status}`);
+
+    if (!["finished","confirmed"].includes(payment_status)) return res.json({ received: true });
+
+    const dep = await Approval.findOne({ npPaymentId: String(payment_id), status: "pending" });
+    if (!dep) return res.json({ received: true });
+
+    await Approval.findByIdAndUpdate(dep._id, { $set: { status: "approved", npStatus: payment_status } });
+    await User.findByIdAndUpdate(dep.userId, { $inc: { balance: dep.amount } });
+    if (dep.transactionId) {
+      await Transaction.findByIdAndUpdate(dep.transactionId, {
+        status: "Completed", note: `NowPayments ${payment_status}. ID: ${payment_id}`
+      });
+    }
+    const investor = await User.findById(dep.userId);
+    if (investor?.referredBy) {
+      const prev = await Transaction.countDocuments({ userId: dep.userId, type: "Deposit", status: "Completed" });
+      if (prev === 1) {
+        const bonus = parseFloat((dep.amount * 0.10).toFixed(2));
+        await User.findByIdAndUpdate(investor.referredBy, { $inc: { referBalance: bonus, referEarned: bonus } });
+      }
+    }
+    const Notification = require("../models/Notification");
+    await Notification.create({
+      userId: dep.userId, type: "general",
+      title: "💰 Deposit Successful",
+      message: `$${dep.amount.toFixed(2)} USDT has been credited to your VANCROX balance.`
+    });
+    console.log(`✅ $${dep.amount} credited to UID${dep.uid}`);
+    res.json({ received: true });
+  } catch(e) {
+    console.error("webhook error:", e.message);
+    res.status(500).json({ message: "error" });
+  }
+};
+
+/* ── CHECK PAYMENT STATUS ── */
+exports.checkPayment = async (req, res) => {
+  try {
+    const { getPaymentStatus } = require("../utils/nowpayments");
+    const status = await getPaymentStatus(req.params.paymentId);
+    res.json({ success: true, status });
+  } catch(e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+
+exports.nowPaymentsWebhook = async (req, res) => {
+  try {
+    const { verifyIPN } = require("../utils/nowpayments");
+    const sig = req.headers["x-nowpayments-sig"];
+    const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    if (!sig || !verifyIPN(rawBody, sig)) {
+      console.error("❌ Invalid IPN signature");
+      return res.status(401).json({ message: "Invalid signature" });
+    }
+    const body = JSON.parse(rawBody);
+    const { payment_id, payment_status, price_amount } = body;
+    console.log(`📩 IPN: id=${payment_id} status=${payment_status}`);
+
+    if (!["finished","confirmed"].includes(payment_status)) return res.json({ received: true });
+
+    const dep = await Approval.findOne({ npPaymentId: String(payment_id), status: "pending" });
+    if (!dep) return res.json({ received: true });
+
+    await Approval.findByIdAndUpdate(dep._id, { $set: { status: "approved", npStatus: payment_status } });
+    await User.findByIdAndUpdate(dep.userId, { $inc: { balance: dep.amount } });
+    if (dep.transactionId) {
+      await Transaction.findByIdAndUpdate(dep.transactionId, {
+        status: "Completed", note: `NowPayments ${payment_status}. ID: ${payment_id}`
+      });
+    }
+    // Referral bonus
+    const investor = await User.findById(dep.userId);
+    if (investor?.referredBy) {
+      const prev = await Transaction.countDocuments({ userId: dep.userId, type: "Deposit", status: "Completed" });
+      if (prev === 1) {
+        const bonus = parseFloat((dep.amount * 0.10).toFixed(2));
+        await User.findByIdAndUpdate(investor.referredBy, { $inc: { referBalance: bonus, referEarned: bonus } });
+      }
+    }
+    // Notification
+    const Notification = require("../models/Notification");
+    await Notification.create({
+      userId: dep.userId, type: "general",
+      title: "💰 Deposit Successful",
+      message: `$${dep.amount.toFixed(2)} USDT has been credited to your VANCROX balance.`
+    });
+    console.log(`✅ $${dep.amount} credited to UID${dep.uid}`);
+    res.json({ received: true });
+  } catch(e) {
+    console.error("webhook error:", e.message);
+    res.status(500).json({ message: "error" });
+  }
+};
+
+/* ── CHECK PAYMENT STATUS ── */
+exports.checkPayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { getPaymentStatus } = require("../utils/nowpayments");
+    const data = await getPaymentStatus(paymentId);
+    res.json({ success: true, status: data });
+  } catch(e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+
+exports.nowPaymentsWebhook = async (req, res) => {
+  try {
+    const { verifyIPN } = require("../utils/nowpayments");
+    const sig = req.headers["x-nowpayments-sig"];
+    if (!sig || !verifyIPN(req.body, sig)) {
+      console.error("❌ Invalid IPN signature");
+      return res.status(401).json({ message: "Invalid signature" });
+    }
+
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { payment_id, payment_status, order_id, actually_paid, price_amount } = body;
+    console.log(`📩 NowPayments IPN: id=${payment_id} status=${payment_status} order=${order_id}`);
+
+    // Only process finished/confirmed payments
+    if (!["finished", "confirmed", "partially_paid"].includes(payment_status)) {
+      return res.json({ received: true });
+    }
+
+    // Find approval by npPaymentId
+    const dep = await Approval.findOne({ npPaymentId: payment_id, status: "pending" });
+    if (!dep) {
+      console.log("No pending deposit found for payment_id:", payment_id);
+      return res.json({ received: true });
+    }
+
+    // Credit balance
+    const creditAmt = dep.amount; // always credit the USD amount they initiated
+    await Approval.findByIdAndUpdate(dep._id, {
+      $set: { status: "approved", npStatus: payment_status }
+    });
+    await User.findByIdAndUpdate(dep.userId, { $inc: { balance: creditAmt } });
+    if (dep.transactionId) {
+      await Transaction.findByIdAndUpdate(dep.transactionId, {
+        status: "Completed",
+        note: `NowPayments ${payment_status}. PayID: ${payment_id}`
+      });
+    }
+
+    // Referral bonus on first deposit
+    const investor = await User.findById(dep.userId);
+    if (investor?.referredBy) {
+      const prev = await Transaction.countDocuments({ userId: dep.userId, type: "Deposit", status: "Completed" });
+      if (prev === 1) {
+        const bonus = parseFloat((creditAmt * 0.10).toFixed(2));
+        await User.findByIdAndUpdate(investor.referredBy, { $inc: { referBalance: bonus, referEarned: bonus } });
+      }
+    }
+
+    // Send notification to investor
+    const Notification = require("../models/Notification");
+    await Notification.create({
+      userId: dep.userId, type: "general",
+      title: "💰 Deposit Successful",
+      message: `$${creditAmt.toFixed(2)} USDT has been credited to your VANCROX balance.`
+    });
+
+    console.log(`✅ $${creditAmt} credited to UID${dep.uid}`);
+    res.json({ received: true });
+  } catch(e) {
+    console.error("webhook error:", e.message);
+    res.status(500).json({ message: "error" });
+  }
+};
+
+/* ── CHECK PAYMENT STATUS ── */
+exports.checkPayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { getPaymentStatus } = require("../utils/nowpayments");
+    const status = await getPaymentStatus(paymentId);
+    res.json({ success: true, status });
+  } catch(e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+
+exports.nowPaymentsWebhook = async (req, res) => {
+  try {
+    const { verifyIPN } = require("../utils/nowpayments");
+    const sig = req.headers["x-nowpayments-sig"];
+    if (!sig || !verifyIPN(req.body, sig)) {
+      console.error("❌ Invalid IPN signature");
+      return res.status(401).json({ message: "Invalid signature" });
+    }
+
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { payment_id, payment_status, order_id, actually_paid, price_amount } = body;
+    console.log(`📩 NowPayments IPN: id=${payment_id} status=${payment_status} order=${order_id}`);
+
+    // Only process finished/confirmed payments
+    if (!["finished", "confirmed", "partially_paid"].includes(payment_status)) {
+      return res.json({ received: true });
+    }
+
+    // Find approval by npPaymentId
+    const dep = await Approval.findOne({ npPaymentId: payment_id, status: "pending" });
+    if (!dep) {
+      console.log("No pending deposit found for payment_id:", payment_id);
+      return res.json({ received: true });
+    }
+
+    // Credit balance
+    const creditAmt = dep.amount; // always credit the USD amount they initiated
+    await Approval.findByIdAndUpdate(dep._id, {
+      $set: { status: "approved", npStatus: payment_status }
+    });
+    await User.findByIdAndUpdate(dep.userId, { $inc: { balance: creditAmt } });
+    if (dep.transactionId) {
+      await Transaction.findByIdAndUpdate(dep.transactionId, {
+        status: "Completed",
+        note: `NowPayments ${payment_status}. PayID: ${payment_id}`
+      });
+    }
+
+    // Referral bonus on first deposit
+    const investor = await User.findById(dep.userId);
+    if (investor?.referredBy) {
+      const prev = await Transaction.countDocuments({ userId: dep.userId, type: "Deposit", status: "Completed" });
+      if (prev === 1) {
+        const bonus = parseFloat((creditAmt * 0.10).toFixed(2));
+        await User.findByIdAndUpdate(investor.referredBy, { $inc: { referBalance: bonus, referEarned: bonus } });
+      }
+    }
+
+    // Send notification to investor
+    const Notification = require("../models/Notification");
+    await Notification.create({
+      userId: dep.userId, type: "general",
+      title: "💰 Deposit Successful",
+      message: `$${creditAmt.toFixed(2)} USDT has been credited to your VANCROX balance.`
+    });
+
+    console.log(`✅ $${creditAmt} credited to UID${dep.uid}`);
+    res.json({ received: true });
+  } catch(e) {
+    console.error("webhook error:", e.message);
+    res.status(500).json({ message: "error" });
+  }
+};
+
+/* ── CHECK PAYMENT STATUS ── */
+exports.checkPayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { getPaymentStatus } = require("../utils/nowpayments");
+    const status = await getPaymentStatus(paymentId);
+    res.json({ success: true, status });
+  } catch(e) {
+    res.status(500).json({ message: e.message });
   }
 };
 
@@ -177,6 +428,16 @@ exports.requestWithdraw = async (req, res) => {
       walletAddress: wallet,
       transactionId: tx._id,
     });
+
+        // Notify investor
+    try {
+      const Notif = require("../models/Notification");
+      await Notif.create({
+        userId: user._id, type: "general",
+        title: "🏦 Withdrawal Requested",
+        message: `Your withdrawal request of $${parseFloat(amount).toFixed(2)} USDT is under review. You will be notified once processed.`
+      });
+    } catch(ne){}
 
     res.json({ success: true, message: "Withdrawal request submitted" });
   } catch (e) {
@@ -372,6 +633,24 @@ exports.deleteAccount = async (req, res) => {
     res.json({ success: true, message: "Account permanently deleted" });
   } catch (e) {
     console.error("deleteAccount:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ── CANCEL DEPOSIT ── */
+exports.cancelDeposit = async (req, res) => {
+  try {
+    const { network, uniqueAmount } = req.body;
+    await Approval.findOneAndUpdate(
+      { userId: req.user._id, type: "DEPOSIT", status: "pending", depositNetwork: network },
+      { $set: { status: "cancelled" } }
+    );
+    await Transaction.findOneAndUpdate(
+      { userId: req.user._id, type: "Deposit", status: "Pending", uniqueAmount: parseFloat(uniqueAmount) },
+      { $set: { status: "Cancelled" } }
+    );
+    res.json({ success: true, message: "Deposit cancelled" });
+  } catch(e) {
     res.status(500).json({ message: "Server error" });
   }
 };

@@ -51,10 +51,11 @@ module.exports = async function midnightReset() {
     console.log(`🌙 Reset: ${ongoingTrades.length} refunded, ${archiveRes.modifiedCount} archived`);
 
     // ══ 3. Delete trade notifications ══
+    // Delete ALL user notifications — keep only admin broadcasts (userId=null)
     const notifRes = await Notification.deleteMany({
-      type: { $in: ["trade_live", "trade_complete"] }
+      userId: { $ne: null }
     });
-    console.log(`🔔 Notifications: deleted ${notifRes.deletedCount} trade notifications`);
+    console.log(`🔔 Notifications reset: ${notifRes.deletedCount} user notifications deleted`);
 
     console.log("🌙 Midnight reset complete ✅");
 

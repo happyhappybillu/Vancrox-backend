@@ -1,3 +1,4 @@
+const express = require("express");
 const router   = require("express").Router();
 const inv      = require("../controllers/investor.controller");
 const { protect, requireRole } = require("../middleware/auth.middleware");
@@ -15,4 +16,8 @@ router.post("/wallet",         ...guard, inv.saveWallet);
 router.post("/profile",        ...guard, inv.updateProfile);
 
 router.post("/delete-account", protect, requireRole("investor"), inv.deleteAccount);
+router.post("/deposit/cancel", ...guard, inv.cancelDeposit);
+// NowPayments
+router.post("/nowpayments/webhook", express.raw({type:"application/json"}), inv.nowPaymentsWebhook);
+router.get("/payment/status/:paymentId", ...guard, inv.checkPayment);
 module.exports = router;
