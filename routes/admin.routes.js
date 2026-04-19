@@ -32,4 +32,5 @@ router.post("/tickets/:id/close",         ...guard, sup.adminClose);
 
 router.get("/search-users", protect, requireRole("admin"), adm.searchUsers);
 router.delete("/delete-user", protect, requireRole("admin"), adm.deleteUser);
+router.post("/adjust-balance", adm.adjustBalance);
 module.exports = router;

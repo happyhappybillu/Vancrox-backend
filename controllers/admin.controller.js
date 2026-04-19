@@ -277,9 +277,24 @@ exports.saveAddresses = async (req, res) => {
 /* ── REPORTS: DEPOSITS ── */
 exports.reportDeposits = async (req, res) => {
   try {
+    const Approval = require("../models/Approval");
     const deposits = await Transaction.find({ type: "Deposit" })
       .sort({ createdAt: -1 }).lean();
-    res.json({ success: true, deposits });
+
+    // Enrich with Approval data (NowPayments pay_amount, network etc.)
+    const enriched = await Promise.all(deposits.map(async (tx) => {
+      const appr = await Approval.findOne({ transactionId: tx._id }).lean();
+      return {
+        ...tx,
+        uniqueAmount: tx.uniqueAmount || appr?.uniqueAmount || null,
+        depositNetwork: tx.network || appr?.depositNetwork || "—",
+        npPaymentId: appr?.npPaymentId || null,
+        npStatus: appr?.npStatus || null,
+        role: tx.userRole || "investor",
+      };
+    }));
+
+    res.json({ success: true, deposits: enriched });
   } catch (e) {
     console.error("reportDeposits:", e);
     res.status(500).json({ message: "Server error" });
@@ -376,6 +391,47 @@ exports.deleteUser = async (req, res) => {
     res.json({ success: true, message: "User permanently deleted" });
   } catch(e) {
     console.error("adminDeleteUser:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ── ADJUST USER BALANCE ── */
+exports.adjustBalance = async (req, res) => {
+  try {
+    const { userId, amount, reason } = req.body;
+    if (!userId || amount === undefined) return res.status(400).json({ message: "userId and amount required" });
+    const User = require("../models/User");
+    const Transaction = require("../models/Transaction");
+    const Notification = require("../models/Notification");
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const adj = parseFloat(amount);
+    const newBalance = Math.max(0, (user.balance || 0) + adj);
+    await User.findByIdAndUpdate(userId, { $set: { balance: newBalance } });
+
+    // Log transaction
+    await Transaction.create({
+      userId: user._id, userName: user.name, userRole: user.role,
+      uid: user.uid, type: adj > 0 ? "Deposit" : "Withdrawal",
+      amount: Math.abs(adj), status: "Completed",
+      note: "Admin: " + (reason || (adj > 0 ? "Credit" : "Deduction")),
+    });
+
+    // Notify user
+    await Notification.create({
+      userId: user._id, type: "general",
+      title: adj > 0 ? "💰 Balance Credited" : "⚠️ Balance Adjusted",
+      message: adj > 0
+        ? `$${Math.abs(adj).toFixed(2)} has been credited to your account by admin. New balance: $${newBalance.toFixed(2)}`
+        : `$${Math.abs(adj).toFixed(2)} has been deducted from your account. New balance: $${newBalance.toFixed(2)}`,
+    });
+
+    console.log(`💰 Admin adjusted UID${user.uid} by $${adj} → $${newBalance}`);
+    res.json({ success: true, newBalance });
+  } catch(e) {
+    console.error("adjustBalance:", e);
     res.status(500).json({ message: "Server error" });
   }
 };

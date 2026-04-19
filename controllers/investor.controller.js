@@ -128,7 +128,10 @@ exports.nowPaymentsWebhook = async (req, res) => {
     // Log full body for debugging
     console.log("IPN body:", JSON.stringify(body).slice(0,300));
 
-    if (!["finished","confirmed"].includes(payment_status)) return res.json({ received: true });
+    // Accept partially_paid too (trailing zero / rounding tolerance)
+    const _ps=(payment_status||"").toLowerCase();
+    if (!["finished","confirmed","partially_paid","sending"].includes(_ps)) return res.json({ received: true });
+    const payment_status_normalized=_ps;
 
     const dep = await Approval.findOne({ npPaymentId: String(payment_id), status: "pending" });
     if (!dep) return res.json({ received: true });
@@ -189,7 +192,10 @@ exports.nowPaymentsWebhook = async (req, res) => {
     // Log full body for debugging
     console.log("IPN body:", JSON.stringify(body).slice(0,300));
 
-    if (!["finished","confirmed"].includes(payment_status)) return res.json({ received: true });
+    // Accept partially_paid too (trailing zero / rounding tolerance)
+    const _ps=(payment_status||"").toLowerCase();
+    if (!["finished","confirmed","partially_paid","sending"].includes(_ps)) return res.json({ received: true });
+    const payment_status_normalized=_ps;
 
     const dep = await Approval.findOne({ npPaymentId: String(payment_id), status: "pending" });
     if (!dep) return res.json({ received: true });
@@ -252,7 +258,7 @@ exports.nowPaymentsWebhook = async (req, res) => {
     console.log(`📩 NowPayments IPN: id=${payment_id} status=${payment_status} order=${order_id}`);
 
     // Only process finished/confirmed payments
-    if (!["finished", "confirmed", "partially_paid"].includes(payment_status)) {
+    if (!["finished","confirmed","partially_paid","sending"].includes((payment_status||"").toLowerCase())) {
       return res.json({ received: true });
     }
 
@@ -329,7 +335,7 @@ exports.nowPaymentsWebhook = async (req, res) => {
     console.log(`📩 NowPayments IPN: id=${payment_id} status=${payment_status} order=${order_id}`);
 
     // Only process finished/confirmed payments
-    if (!["finished", "confirmed", "partially_paid"].includes(payment_status)) {
+    if (!["finished","confirmed","partially_paid","sending"].includes((payment_status||"").toLowerCase())) {
       return res.json({ received: true });
     }
 

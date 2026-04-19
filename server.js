@@ -74,7 +74,7 @@ cron.schedule("0 * * * * *", depositCron);
 
 /* ── NOWPAYMENTS DEPOSIT CRON — every 3 minutes ── */
 const npDepositCron = require("./utils/npDepositCron");
-cron.schedule("0 */3 * * * *", npDepositCron);
+cron.schedule("0 * * * * *", npDepositCron); // every 60s
 console.log("💳 NowPayments deposit cron running (every 3 min)");
 
 console.log("⛓️  Blockchain deposit verifier running (every 60s)");
