@@ -33,4 +33,17 @@ router.post("/tickets/:id/close",         ...guard, sup.adminClose);
 router.get("/search-users", protect, requireRole("admin"), adm.searchUsers);
 router.delete("/delete-user", protect, requireRole("admin"), adm.deleteUser);
 router.post("/adjust-balance", adm.adjustBalance);
+// Announcements
+const ann = require("../controllers/announcement.controller");
+router.post("/announcements", ann.createAnnouncement);
+router.get("/announcements", ann.listAnnouncements);
+router.delete("/announcements/:id", ann.deleteAnnouncement);
+router.patch("/announcements/:id/toggle", ann.toggleAnnouncement);
+// Tournaments
+const tourn = require("../controllers/tournament.controller");
+router.post("/tournaments", tourn.adminCreate);
+router.get("/tournaments", tourn.adminList);
+router.put("/tournaments/:id", tourn.adminUpdate);
+router.delete("/tournaments/:id", tourn.adminDelete);
+router.post("/tournaments/:id/result", tourn.adminResult);
 module.exports = router;

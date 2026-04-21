@@ -32,4 +32,11 @@ router.post("/nowpayments/webhook",
   inv.nowPaymentsWebhook
 );
 router.get("/payment/status/:paymentId", ...guard, inv.checkPayment);
+// Announcements
+const ann = require("../controllers/announcement.controller");
+router.get("/announcements", ...guard, ann.getActiveAnnouncements);
+// Tournaments
+const tourn = require("../controllers/tournament.controller");
+router.get("/tournaments", ...guard, tourn.investorList);
+router.post("/tournaments/:id/join", ...guard, tourn.investorJoin);
 module.exports = router;

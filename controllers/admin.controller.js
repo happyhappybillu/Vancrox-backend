@@ -86,7 +86,7 @@ exports.approveItem = async (req, res) => {
         await Notif.create({
           userId: approval.userId, type: "general",
           title: "Withdrawal Completed",
-          message: `Your withdrawal request of $${parseFloat(amt).toFixed(2)} USDT has been successfully processed. Funds have been transferred to your registered wallet address.`
+          message: `Your withdrawal request of $${parseFloat(amt).toFixed(2)} USDT has been successfully processed. Funds have been transferred to your wallet address.`
         });
       } catch(ne){}
     }
