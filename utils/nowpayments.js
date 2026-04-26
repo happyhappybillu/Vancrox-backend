@@ -67,7 +67,14 @@ async function createPayment({ amount, coin, orderId, description }) {
   };
 
   const res = await npRequest("POST", "/payment", body);
-  if (res.status !== 201) throw new Error("NowPayments error: " + JSON.stringify(res.data));
+  if (res.status !== 201 && res.status !== 200) {
+    console.error("NowPayments API error:", res.status, JSON.stringify(res.data).slice(0,200));
+    throw new Error("NowPayments error " + res.status + ": " + (res.data?.message || JSON.stringify(res.data).slice(0,100)));
+  }
+  if (!res.data?.pay_address) {
+    console.error("NowPayments no pay_address in response:", JSON.stringify(res.data).slice(0,300));
+    throw new Error("Payment gateway did not return an address. Check NowPayments dashboard settings.");
+  }
   return res.data;
 }
 

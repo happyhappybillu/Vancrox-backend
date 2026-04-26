@@ -69,16 +69,44 @@ exports.initDeposit = async (req, res) => {
     if (!coin || !amount) return res.status(400).json({ message: "coin and amount required" });
     if (amount < 10) return res.status(400).json({ message: "Minimum deposit is $10" });
 
-    const { createPayment, CURRENCY_MAP } = require("../utils/nowpayments");
+    const { createPayment, getPaymentStatus, CURRENCY_MAP } = require("../utils/nowpayments");
     if (!CURRENCY_MAP[coin]) return res.status(400).json({ message: "Unsupported coin: " + coin });
 
     const user = req.user;
+
+    // ── Check if there's already an active NowPayments pending for this user ──
+    const existing = await Approval.findOne({
+      userId: user._id, type: "DEPOSIT", status: "pending",
+      npPaymentId: { $exists: true, $ne: "" },
+      createdAt: { $gte: new Date(Date.now() - 35 * 60 * 1000) } // within 35 min
+    });
+    if (existing) {
+      // Return existing payment instead of creating new one
+      try {
+        const existStatus = await getPaymentStatus(existing.npPaymentId);
+        if (existStatus.pay_address) {
+          console.log("Returning existing payment for UID" + user.uid);
+          return res.json({
+            success: true,
+            paymentId:   existing.npPaymentId,
+            payAddress:  existStatus.pay_address,
+            payAmount:   existStatus.pay_amount,
+            payCurrency: existStatus.pay_currency,
+            network:     existing.depositNetwork,
+            expiresAt:   existStatus.expiration_estimate_date,
+          });
+        }
+      } catch(e) { /* fall through to create new */ }
+    }
+
     const orderId = `VC-${user.uid}-${Date.now()}`;
+    console.log("Creating NowPayments payment for UID" + user.uid + " coin=" + coin + " amount=" + amount);
 
     const payment = await createPayment({
       amount, coin, orderId,
       description: `VANCROX Deposit - UID${user.uid}`
     });
+    console.log("NowPayments response:", JSON.stringify(payment).slice(0,200));
 
     const tx = await Transaction.create({
       userId: user._id, userName: user.name, userRole: "investor", uid: user.uid,
